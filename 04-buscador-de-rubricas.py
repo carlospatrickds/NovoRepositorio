@@ -309,6 +309,7 @@ rubrica_pagamentos_regulares = """
 | 107    | Complemento positivo                                 |
 | 110    | Correção monetária                                   |
 | 121    | Complemento a título de CPMF                         |
+| 159    |CORRECAO MONETARIA COMPLEMENTAR DE RENDA              |  
 """
 
 rubrica_abonos_gratificacoes = """
