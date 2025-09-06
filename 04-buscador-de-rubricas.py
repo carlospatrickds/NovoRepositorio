@@ -39,6 +39,7 @@ descricoes_rubricas = {
     "145": "Adicional Talidomida",
     "146": "Indenização por ação judicial específica",
     "156": "CP – Revisão de teto",
+    "159": "CORRECAO MONETARIA COMPLEMENTAR DE RENDA",
     "201": "IMPOSTO DE RENDA RETIDO NA FONTE",
     "202": "Pensão Alimentícia – Débito",
     "203": "CONSIGNAÇÃO",
