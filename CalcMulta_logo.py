@@ -70,10 +70,10 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             st.warning("Fonte DejaVu não encontrada, usando Arial como fallback.")
         
         # Dados do processo (AGORA ABAIXO DA LOGO)
-        pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 8, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
-        pdf.cell(0, 8, unidecode(f"Autor: {nome_autor}"), ln=True)
-        pdf.cell(0, 8, unidecode(f"Réu: {nome_reu}"), ln=True)
+        pdf.set_font("Arial", "", 11)
+        pdf.cell(0, 6, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
+        pdf.cell(0, 6, unidecode(f"Autor: {nome_autor}"), ln=True)
+        pdf.cell(0, 6, unidecode(f"Réu: {nome_reu}"), ln=True)
         pdf.ln(10)
 
         # Detalhamento das Faixas
