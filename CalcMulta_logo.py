@@ -17,6 +17,164 @@ st.set_page_config(page_title="Multa Corrigida por Mês", layout="centered")
 # Criação das abas
 abas = st.tabs(["📘 Aplicação", "📄 Tutorial da Multa"])
 
+# === FUNÇÃO GERAR PDF - MOVIDA PARA O TOPO ===
+def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
+    try:
+        FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # Configurar margens menores
+        pdf.set_margins(left=10, top=10, right=10)
+        
+        # === ADICIONAR LOGO CENTRALIZADA ===
+        try:
+            # URL da sua imagem no GitHub (usando raw.githubusercontent.com)
+            logo_url = "https://raw.githubusercontent.com/carlospatrickds/NovoRepositorio/main/logjfpe.png"
+            
+            # Baixar a imagem
+            response = requests.get(logo_url)
+            response.raise_for_status()
+            
+            # Salvar temporariamente
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
+                tmp_img.write(response.content)
+                tmp_img_path = tmp_img.name
+            
+            # Adicionar logo centralizada no topo
+            # Calcular posição centralizada: (largura_página - largura_imagem) / 2
+            largura_pagina = 190  # 210mm - 10mm de margem esquerda - 10mm direita
+            largura_imagem = 80   # Ajuste conforme necessário
+            posicao_x = (largura_pagina - largura_imagem) / 2 + 10  # +10 para compensar margem
+            
+            pdf.image(tmp_img_path, x=posicao_x, y=8, w=largura_imagem)
+            pdf.ln(30)  # Espaço após a logo
+            
+            # Limpar arquivo temporário
+            import os
+            os.unlink(tmp_img_path)
+            
+        except Exception as img_error:
+            st.warning(f"Não foi possível carregar a logo: {img_error}")
+            # Cabeçalho alternativo sem logo
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, unidecode("Relatório de Multa Diária Corrigida"), ln=True, align="C")
+            pdf.ln(5)
+        
+        # Configurar a fonte (com fallback)
+        try:
+            pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
+            pdf.set_font("DejaVu", size=10)
+        except:
+            pdf.set_font("Arial", size=10)
+            st.warning("Fonte DejaVu não encontrada, usando Arial como fallback.")
+        
+        # Dados do processo (AGORA ABAIXO DA LOGO)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(0, 6, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
+        pdf.cell(0, 6, unidecode(f"Autor: {nome_autor}"), ln=True)
+        pdf.cell(0, 6, unidecode(f"Réu: {nome_reu}"), ln=True)
+        pdf.ln(10)
+
+        # Detalhamento das Faixas
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 6, unidecode("Detalhamento das Faixas:"), ln=True)
+        pdf.set_font("Arial", "", 10)
+
+        for i, faixa in enumerate(st.session_state.faixas):
+            # CALCULA DIAS CORRETAMENTE BASEADO NO TIPO SELECIONADO
+            if faixa.get("dias_uteis", False):
+                cal = Brazil()
+                dia = faixa["inicio"]
+                dias_contabilizados = 0
+                while dia <= faixa["fim"]:
+                    if cal.is_working_day(dia) and dia.weekday() < 5:  # Dias úteis
+                        dias_contabilizados += 1
+                    dia += timedelta(days=1)
+                dias_contabilizados = max(0, dias_contabilizados - faixa.get("dias_abatidos", 0))
+                tipo_dias = "dias úteis"
+            else:
+                dias_contabilizados = (faixa["fim"] - faixa["inicio"]).days + 1 - faixa.get("dias_abatidos", 0)
+                tipo_dias = "dias corridos"
+            
+            linha = (
+                f"Faixa {i+1}: {faixa['inicio'].strftime('%d/%m/%Y')} a {faixa['fim'].strftime('%d/%m/%Y')} | "
+                f"{dias_contabilizados} {tipo_dias} | "
+                f"Valor: {moeda_br(faixa['valor'])}/dia | "
+                f"Total: {moeda_br(dias_contabilizados * faixa['valor'])}"
+            )
+            pdf.multi_cell(0, 6, unidecode(linha))
+            pdf.ln(2)
+
+        pdf.ln(5)
+
+        # Atualização da multa
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 6, unidecode("Atualização da multa:"), ln=True)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(90, 6, unidecode(f"Data de atualização:"), 0, 0)
+        pdf.cell(0, 6, unidecode(f"{res['data_atualizacao'].strftime('%d/%m/%Y')}"), ln=True)
+        pdf.cell(90, 6, unidecode(f"Total de dias em atraso:"), 0, 0)
+        pdf.cell(0, 6, unidecode(f"{res['total_dias']}"), ln=True)
+        pdf.cell(90, 6, unidecode(f"Multa sem correção:"), 0, 0)
+        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_sem_correcao'])}"), ln=True)
+
+        # Detalhamento mensal
+        pdf.ln(5)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 6, unidecode("Correção mês a mês:"), ln=True)
+        pdf.set_font("Arial", "", 10)
+
+        for mes in res["meses_ordenados"]:
+            bruto = res["totais_mensais"][mes]
+            indice = res["indices"].get(mes, 0.0)
+            corrigido = bruto * (1 + indice)
+            data_formatada = f"{mes[5:]}/{mes[:4]}"
+            linha = f"{data_formatada}: {moeda_br(bruto)} x {indice*100:.2f}% = {moeda_br(corrigido)}"
+            pdf.cell(0, 6, unidecode(linha), ln=True)
+
+        # Multa corrigida final
+        pdf.ln(5)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(90, 6, unidecode(f"Multa corrigida:"), 0, 0)
+        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_corrigido'])}"), ln=True)
+
+        pdf.ln(8)
+
+        # Observação
+        if observacao and observacao.strip():
+            pdf.ln(3)
+            pdf.set_font("Arial", "I", 8)
+            pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
+        
+        # Rodapé
+        pdf.ln(8)
+        pdf.set_font("Arial", "I", 8)
+        pdf.cell(
+            0, 6,
+            "Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil",
+            ln=True
+        )
+
+        pdf.ln(6)
+        pdf.cell(
+            0, 6,
+            "Este documento é assinado e datado eletronicamente.",
+            ln=True
+        )
+        
+        # Gerar PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            pdf.output(tmp_file.name)
+            tmp_file.seek(0)
+            return tmp_file.read()
+
+    except Exception as e:
+        st.error(f"Erro ao gerar PDF: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+        return None
+
 # === ABA TUTORIAL DA MULTA ===
 with abas[1]:
     st.markdown("## 📄 Quando começa a multa por descumprimento da obrigação de fazer?")
@@ -39,7 +197,7 @@ with abas[1]:
 
 ### ❗ Início da Multa:
 - A multa começa a contar **a partir de 05/04/2025**
-- Ou seja, no **dia seguinte ao término do prazo** sem o cumprimento da obrigação
+- Ou seja, no **dia seguinte ao término do prazo** sem o cumprimento da obligação
 
 ---
 
@@ -490,160 +648,3 @@ if "resultado_multa" in st.session_state:
                             )
                     except Exception as e:
                         st.error(f"Erro ao gerar PDF: {str(e)}")
-
-def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
-    try:
-        FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        pdf = FPDF()
-        pdf.add_page()
-        
-        # Configurar margens menores
-        pdf.set_margins(left=10, top=10, right=10)
-        
-        # === ADICIONAR LOGO CENTRALIZADA ===
-        try:
-            # URL da sua imagem no GitHub (usando raw.githubusercontent.com)
-            logo_url = "https://raw.githubusercontent.com/carlospatrickds/NovoRepositorio/main/logjfpe.png"
-            
-            # Baixar a imagem
-            response = requests.get(logo_url)
-            response.raise_for_status()
-            
-            # Salvar temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
-                tmp_img.write(response.content)
-                tmp_img_path = tmp_img.name
-            
-            # Adicionar logo centralizada no topo
-            # Calcular posição centralizada: (largura_página - largura_imagem) / 2
-            largura_pagina = 190  # 210mm - 10mm de margem esquerda - 10mm direita
-            largura_imagem = 80   # Ajuste conforme necessário
-            posicao_x = (largura_pagina - largura_imagem) / 2 + 10  # +10 para compensar margem
-            
-            pdf.image(tmp_img_path, x=posicao_x, y=8, w=largura_imagem)
-            pdf.ln(30)  # Espaço após a logo
-            
-            # Limpar arquivo temporário
-            import os
-            os.unlink(tmp_img_path)
-            
-        except Exception as img_error:
-            st.warning(f"Não foi possível carregar a logo: {img_error}")
-            # Cabeçalho alternativo sem logo
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, unidecode("Relatório de Multa Diária Corrigida"), ln=True, align="C")
-            pdf.ln(5)
-        
-        # Configurar a fonte (com fallback)
-        try:
-            pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-            pdf.set_font("DejaVu", size=10)
-        except:
-            pdf.set_font("Arial", size=10)
-            st.warning("Fonte DejaVu não encontrada, usando Arial como fallback.")
-        
-        # Dados do processo (AGORA ABAIXO DA LOGO)
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(0, 6, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
-        pdf.cell(0, 6, unidecode(f"Autor: {nome_autor}"), ln=True)
-        pdf.cell(0, 6, unidecode(f"Réu: {nome_reu}"), ln=True)
-        pdf.ln(10)
-
-        # Detalhamento das Faixas
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Detalhamento das Faixas:"), ln=True)
-        pdf.set_font("Arial", "", 10)
-
-        for i, faixa in enumerate(st.session_state.faixas):
-            # CALCULA DIAS CORRETAMENTE BASEADO NO TIPO SELECIONADO
-            if faixa.get("dias_uteis", False):
-                cal = Brazil()
-                dia = faixa["inicio"]
-                dias_contabilizados = 0
-                while dia <= faixa["fim"]:
-                    if cal.is_working_day(dia) and dia.weekday() < 5:  # Dias úteis
-                        dias_contabilizados += 1
-                    dia += timedelta(days=1)
-                dias_contabilizados = max(0, dias_contabilizados - faixa.get("dias_abatidos", 0))
-                tipo_dias = "dias úteis"
-            else:
-                dias_contabilizados = (faixa["fim"] - faixa["inicio"]).days + 1 - faixa.get("dias_abatidos", 0)
-                tipo_dias = "dias corridos"
-            
-            linha = (
-                f"Faixa {i+1}: {faixa['inicio'].strftime('%d/%m/%Y')} a {faixa['fim'].strftime('%d/%m/%Y')} | "
-                f"{dias_contabilizados} {tipo_dias} | "
-                f"Valor: {moeda_br(faixa['valor'])}/dia | "
-                f"Total: {moeda_br(dias_contabilizados * faixa['valor'])}"
-            )
-            pdf.multi_cell(0, 6, unidecode(linha))
-            pdf.ln(2)
-
-        pdf.ln(5)
-
-        # Atualização da multa
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Atualização da multa:"), ln=True)
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(90, 6, unidecode(f"Data de atualização:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['data_atualizacao'].strftime('%d/%m/%Y')}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Total de dias em atraso:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['total_dias']}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Multa sem correção:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_sem_correcao'])}"), ln=True)
-
-        # Detalhamento mensal
-        pdf.ln(5)
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Correção mês a mês:"), ln=True)
-        pdf.set_font("Arial", "", 10)
-
-        for mes in res["meses_ordenados"]:
-            bruto = res["totais_mensais"][mes]
-            indice = res["indices"].get(mes, 0.0)
-            corrigido = bruto * (1 + indice)
-            data_formatada = f"{mes[5:]}/{mes[:4]}"
-            linha = f"{data_formatada}: {moeda_br(bruto)} x {indice*100:.2f}% = {moeda_br(corrigido)}"
-            pdf.cell(0, 6, unidecode(linha), ln=True)
-
-        # Multa corrigida final
-        pdf.ln(5)
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(90, 6, unidecode(f"Multa corrigida:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_corrigido'])}"), ln=True)
-
-        pdf.ln(8)
-
-        # Observação
-        if observacao and observacao.strip():
-            pdf.ln(3)
-            pdf.set_font("Arial", "I", 8)
-            pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
-        
-        # Rodapé
-        pdf.ln(8)
-        pdf.set_font("Arial", "I", 8)
-        pdf.cell(
-            0, 6,
-            "Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil",
-            ln=True
-        )
-
-        pdf.ln(6)
-        pdf.cell(
-            0, 6,
-            "Este documento é assinado e datado eletronicamente.",
-            ln=True
-        )
-        
-        # Gerar PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            pdf.output(tmp_file.name)
-            tmp_file.seek(0)
-            return tmp_file.read()
-
-    except Exception as e:
-        st.error(f"Erro ao gerar PDF: {str(e)}")
-        import traceback
-        st.error(traceback.format_exc())
-        return None
