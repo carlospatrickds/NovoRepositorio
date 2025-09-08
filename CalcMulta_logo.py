@@ -197,7 +197,7 @@ with abas[1]:
 
 ### ❗ Início da Multa:
 - A multa começa a contar **a partir de 05/04/2025**
-- Ou seja, no **dia seguinte ao término do prazo** sem o cumprimento da obligação
+- Ou seja, no **dia seguinte ao término do prazo** sem o cumprimento da obrigação
 
 ---
 
