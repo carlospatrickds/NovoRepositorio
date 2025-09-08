@@ -386,27 +386,110 @@ for mes in meses_ordenados:
         )
         indices[mes] = indice / 100
 
-# Cálculo final
+# Cálculo final - VERSÃO CORRIGIDA
 if st.button("💰 Calcular Multa Corrigida"):
-    total_sem_correcao = sum(totais_mensais.values())
-    total_corrigido = 0.0
+    try:
+        # Debug: verificar se há dados para calcular
+        if not totais_mensais:
+            st.error("Nenhuma faixa adicionada para cálculo.")
+            st.stop()
+            
+        if not meses_ordenados:
+            st.error("Nenhum mês encontrado para cálculo.")
+            st.stop()
+            
+        total_sem_correcao = sum(totais_mensais.values())
+        total_corrigido = 0.0
 
-    for mes in meses_ordenados:
-        bruto = totais_mensais[mes]
-        indice = indices.get(mes, 0.0)
-        fator = 1 + indice
-        corrigido = bruto * fator
-        total_corrigido += corrigido
+        for mes in meses_ordenados:
+            bruto = totais_mensais[mes]
+            indice = indices.get(mes, 0.0)
+            fator = 1 + indice
+            corrigido = bruto * fator
+            total_corrigido += corrigido
 
-    st.session_state.resultado_multa = {
-        "total_dias": total_dias,
-        "total_sem_correcao": total_sem_correcao,
-        "total_corrigido": total_corrigido,
-        "data_atualizacao": data_atualizacao,
-        "meses_ordenados": meses_ordenados,
-        "totais_mensais": totais_mensais,
-        "indices": indices,
-    }
+        st.session_state.resultado_multa = {
+            "total_dias": total_dias,
+            "total_sem_correcao": total_sem_correcao,
+            "total_corrigido": total_corrigido,
+            "data_atualizacao": data_atualizacao,
+            "meses_ordenados": meses_ordenados,
+            "totais_mensais": totais_mensais,
+            "indices": indices,
+        }
+        
+        st.success("Cálculo concluído com sucesso!")
+        
+    except Exception as e:
+        st.error(f"Erro durante o cálculo: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+
+# Exibição dos resultados - VERSÃO CORRIGIDA
+if "resultado_multa" in st.session_state:
+    try:
+        res = st.session_state.resultado_multa
+        
+        # Verifica se os dados necessários existem
+        if not res or "meses_ordenados" not in res:
+            st.error("Erro nos dados calculados. Tente novamente.")
+        else:
+            st.subheader("📋 Detalhamento por mês:")
+            for mes in res["meses_ordenados"]:
+                bruto = res["totais_mensais"][mes]
+                indice = res["indices"].get(mes, 0.0)
+                corrigido = bruto * (1 + indice)
+                data_formatada = f"{mes[5:]}/{mes[:4]}"
+                if indice == 0.0:
+                    st.markdown(f"- **{data_formatada}**: {moeda_br(bruto)}")
+                else:
+                    st.markdown(f"- **{data_formatada}**: base {moeda_br(bruto)} + índice {indice*100:.2f}% → corrigido: {moeda_br(corrigido)}")
+
+            st.markdown("---")
+            st.subheader("✅ Resultado Final")
+            st.markdown(f"- **Total de dias em atraso:** {res['total_dias']}")
+            st.markdown(f"- **Multa sem correção:** {moeda_br(res['total_sem_correcao'])}")
+            st.markdown(f"- **Multa corrigida até {res['data_atualizacao'].strftime('%m/%Y')}:** {moeda_br(res['total_corrigido'])}")
+            
+    except Exception as e:
+        st.error(f"Erro ao exibir resultados: {str(e)}")
+        st.error("Por favor, verifique os dados e tente novamente.")
+
+# Formulário para PDF - VERSÃO CORRIGIDA
+if "resultado_multa" in st.session_state:
+    with st.expander("📄 Gerar Relatório PDF", expanded=True):
+        col1, col2 = st.columns([2, 3])
+        
+        with col1:
+            numero_processo = st.text_input("Nº do Processo", key="proc_input")
+            nome_autor = st.text_input("Autor", key="autor_input")
+            nome_reu = st.text_input("Réu", key="reu_input")
+            
+        with col2:
+            observacao = st.text_area("Observações", height=206, key="obs_input")
+
+        if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
+            if not numero_processo:
+                st.error("Informe o número do processo")
+            else:
+                with st.spinner("Gerando documento..."):
+                    try:
+                        pdf_data = gerar_pdf(
+                            st.session_state.resultado_multa,
+                            numero_processo,
+                            nome_autor,
+                            nome_reu,
+                            observacao
+                        )
+                        if pdf_data:
+                            st.download_button(
+                                "⬇️ Baixar PDF",
+                                pdf_data,
+                                file_name=f"relatorio_{numero_processo}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf"
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar PDF: {str(e)}")
 
 def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
     try:
