@@ -30,3 +30,7 @@ workalendar
 # atualize esses scripts para usar fpdf2, pois ambas têm a mesma interface: from fpdf import FPDF
 
 
+streamlit==1.29.0
+google-generativeai==0.3.2
+python-dotenv==1.0.0
+pillow==10.0.1
