@@ -180,7 +180,7 @@ with st.sidebar:
    
     st.header("📞 Suporte Rápido")
     st.link_button("🆘 Reportar Problema", "https://l1nk.dev/WVtgy", use_container_width=True)
-    st.link_button("💡 Sugerir Melhoria", "https://l1nk.dev/WVtgy", use_container_width=True)
+    st.link_button("💡 Sugerir Melhoria", "carlos.patrick@hotmail.com", use_container_width=True)
     
 # Informação adicional
 st.markdown("---")
