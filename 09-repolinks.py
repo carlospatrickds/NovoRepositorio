@@ -177,10 +177,30 @@ with st.sidebar:
     - Sistema AnaClara melhorado
     """)
     
+with st.sidebar:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
+        <h2>🎅 Bem-vindo!</h2>
+        <p>Este repositório contém todas as ferramentas e sistemas desenvolvidos.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.header("📊 Estatísticas")
+    st.metric("Total de Projetos", "5")
+    st.metric("Projetos Ativos", "5")
+    st.metric("Última Atualização", "Hoje")
+    
+    st.header("🔔 Novidades")
+    st.success("""
+    **Última atualização:**
+    - Calculadora de multa com correção SELIC
+    - Sistema AnaClara melhorado
+    """)
+    
     st.header("📞 Suporte Rápido")
-    st.button("🆘 Reportar Problema", use_container_width=True)
-    st.button("💡 Sugerir Melhoria", use_container_width=True)
-
+    st.link_button("🆘 Reportar Problema", "https://l1nk.dev/WVtgy", use_container_width=True)
+    st.link_button("💡 Sugerir Melhoria", "https://l1nk.dev/WVtgy", use_container_width=True)
 # Informação adicional
 st.markdown("---")
 st.caption("© 2024 - Todos os sistemas desenvolvidos com Streamlit • Atualizado automaticamente")
