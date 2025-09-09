@@ -1,5 +1,17 @@
 import streamlit as st
 
+
+
+# --- VERIFICAÇÃO DE SENHA ---
+SENHA_CORRETA = "23"
+senha_digitada = st.text_input("Digite a senha para acessar a lista de links:", type="password")
+
+if senha_digitada != SENHA_CORRETA:
+    if senha_digitada:  # Só mostra erro se o usuário já digitou algo
+        st.error("Senha incorreta! Acesso negado.")
+    st.stop()  # Para aqui se a senha estiver errada ou vazia
+
+
 # Configuração da página
 st.set_page_config(
     page_title="Repositório de Links - Meus Projetos",
