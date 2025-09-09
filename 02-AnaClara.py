@@ -4,7 +4,7 @@ from datetime import datetime
 # Configuração da página
 st.set_page_config(
     page_title="AnaClara - VT",
-    page_icon="",
+    page_icon="⭐",
     layout="centered",
     initial_sidebar_state="expanded"
 )
