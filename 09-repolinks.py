@@ -83,7 +83,7 @@ with col1:
     # Link 2 - Sistema AnaClara 2
     st.markdown(f"""
     <div class="link-card">
-        <h3>⭐ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara</h3>
+        <h3>✨ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara</h3>
         <p>Sistema com verificação da periculosidade para cálculo de adicionais trabalhistas.</p>
         <a href="https://03-anaclara2.streamlit.app/" target="_blank">
             <button class="link-button">🔗 Acessar Sistema AnaClara</button>
