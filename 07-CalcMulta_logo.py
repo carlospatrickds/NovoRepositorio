@@ -12,7 +12,7 @@ from unidecode import unidecode
 from workalendar.america import Brazil
 
 # Configuração inicial
-st.set_page_config(page_title="📅 Multa Corrigida por Mês", layout="centered")
+st.set_page_config(page_title=" Multa Corrigida por Mês", layout="centered", ICON="📅")
 
 # Criação das abas
 abas = st.tabs(["📘 Aplicação", "📄 Tutorial da Multa"])
