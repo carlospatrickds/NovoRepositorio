@@ -173,8 +173,8 @@ with st.sidebar:
     st.header("🔔 Novidades")
     st.success("""
     **Última atualização:**
-    - Calculadora de multa com correção SELIC
-    - Sistema AnaClara melhorado
+    - Calculadora de multa com correção SELIC com logo JF
+    
     """)
     
    
