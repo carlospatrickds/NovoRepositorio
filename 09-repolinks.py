@@ -144,7 +144,7 @@ st.markdown("### 📧 Contato e Suporte")
 col_contact1, col_contact2, col_contact3 = st.columns(3)
 
 with col_contact1:
-    st.info("**Email:**\carlos.patrick@hotmail.com")
+    st.info("**Email:**carlos.patrick@hotmail.com")
 
 with col_contact2:
     st.info("**Suporte Técnico:**\nDisponível 24/7")
