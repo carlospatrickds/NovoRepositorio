@@ -1,8 +1,15 @@
 import streamlit as st
-import google.generativeai as genai
-from datetime import datetime
+import sys
 import time
-import os
+from datetime import datetime
+
+# Tente importar a biblioteca do Gemini
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    st.error("Biblioteca google-generativeai não encontrada. Instale com: `pip install google-generativeai`")
 
 # Configuração da página
 st.set_page_config(
@@ -15,6 +22,23 @@ st.set_page_config(
 # Título e descrição
 st.title("💬 Chatbot com Google Gemini")
 st.markdown("Converse com um chatbot alimentado pela inteligência artificial do Google Gemini.")
+
+# Verificar se a biblioteca está disponível
+if not GEMINI_AVAILABLE:
+    st.warning("""
+    **Dependência necessária não instalada!**
+    
+    Para executar este app, instale as dependências:
+    ```bash
+    pip install streamlit google-generativeai python-dotenv pillow
+    ```
+    
+    Ou use o arquivo requirements.txt:
+    ```bash
+    pip install -r requirements.txt
+    ```
+    """)
+    st.stop()
 
 # Inicialização do estado da sessão
 if "messages" not in st.session_state:
@@ -115,16 +139,22 @@ if prompt := st.chat_input("Digite sua mensagem..."):
         message_placeholder.markdown("▌")
         
         try:
-            # Construir histórico de conversa para o modelo
-            history_for_model = []
-            for msg in st.session_state.messages[:-1]:  # Excluir a última mensagem (a atual)
-                role = "user" if msg["role"] == "user" else "model"
-                history_for_model.append({role: msg["content"]})
+            # Simular um pequeno delay para melhor UX
+            time.sleep(0.5)
+            
+            # Construir prompt com histórico
+            chat_history = "\n".join([f"{'Usuário' if msg['role'] == 'user' else 'Assistente'}: {msg['content']}" 
+                                    for msg in st.session_state.messages[:-1]])
+            
+            full_prompt = f"""Histórico da conversa:
+            {chat_history}
+            
+            Usuário: {prompt}
+            
+            Assistente: """
             
             # Gerar resposta
-            response = model.generate_content(
-                contents=history_for_model + [{"user": prompt}]
-            )
+            response = model.generate_content(full_prompt)
             
             # Exibir resposta
             full_response = response.text
