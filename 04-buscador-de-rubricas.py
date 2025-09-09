@@ -8,6 +8,7 @@ st.set_page_config(
     page_title="Buscador de rubricas do HISCRE",
     layout="centered",
     initial_sidebar_state="expanded"
+)
 
 # --- VERIFICAÇÃO DE SENHA ---
 SENHA_CORRETA = "23"
