@@ -6,7 +6,6 @@ import pandas as pd
 # Configuração da página
 st.set_page_config(
     page_title="Buscador de rubricas do HISCRE",
-    page_icon="",
     layout="centered",
     initial_sidebar_state="expanded"
 
