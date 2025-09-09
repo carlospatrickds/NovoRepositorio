@@ -3,6 +3,13 @@ import pdfplumber
 import re
 import pandas as pd
 
+# Configuração da página
+st.set_page_config(
+    page_title="Buscador de rubricas do HISCRE",
+    page_icon="",
+    layout="centered",
+    initial_sidebar_state="expanded"
+
 # --- VERIFICAÇÃO DE SENHA ---
 SENHA_CORRETA = "23"
 senha_digitada = st.text_input("Digite a senha para acessar o BUSCADOR:", type="password")
