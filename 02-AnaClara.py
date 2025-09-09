@@ -1,6 +1,13 @@
 import streamlit as st
 import re
 from datetime import datetime
+# Configuração da página
+st.set_page_config(
+    page_title="AnaClara - VT",
+    page_icon="",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
 # Dicionário com os salários mínimos por competência
 salarios_minimos = {
