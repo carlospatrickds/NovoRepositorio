@@ -1,37 +1,31 @@
-# Framework da aplicação
-streamlit==1.29.0
-
-# IA e processamento de linguagem
-google-generativeai==0.3.2
-
-# Manipulação de dados
+# Bibliotecas principais
+fpdf2
+streamlit>=1.22.0
 pandas>=2.0.0
 numpy>=1.24.0
 
-# Processamento de PDF e texto
-fpdf2
+# Leitura e manipulação de PDF/texto
 pdfplumber
 PyMuPDF
 unidecode
 
-# Datas, utilitários e automação
+# Datas, índices e automação
 python-dateutil==2.8.2
 sidrapy
 num2words
-workalendar
 
-# Web scraping e HTML
+# Web scraping / HTML
 html5lib
 beautifulsoup4
 
-# API do GitHub
+# GitHub API
 PyGithub
 
-# Variáveis de ambiente
-python-dotenv==1.0.0
+#Calendário para verificação de dias úteis
+workalendar
 
-# Processamento de imagens
-pillow==10.0.1
 
-# Outras dependências
-html5lib
+# Observação:
+# Se algum script antigo usar a versão velha do fpdf (sem suporte a UTF-8),
+# atualize esses scripts para usar fpdf2, pois ambas têm a mesma interface: from fpdf import FPDF
+
