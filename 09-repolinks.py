@@ -3,7 +3,7 @@ import streamlit as st
 # Configuração da página
 st.set_page_config(
     page_title="Repositório de Links - Meus Projetos",
-    page_icon="🎅",
+    page_icon="🎁",
     layout="wide",
     initial_sidebar_state="expanded"
 )
