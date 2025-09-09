@@ -6,9 +6,9 @@ from datetime import datetime
 st.set_page_config(
     page_title="Cálculo de Acumulação de Benefícios",
     page_icon="📊",
-    layout="wide"
+    layout="centered"
 )
-# st.set_page_config(page_title="Cálculo de Acumulação de Benefícios", layout="centered",  page_icon="📊")
+# st.set_page_config(page_title="Cálculo de Acumulação de Benefícios", layout="WIDE",  page_icon="📊")
 
 
 # Dicionário completo com os salários mínimos
