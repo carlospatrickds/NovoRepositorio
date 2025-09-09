@@ -160,7 +160,7 @@ with st.sidebar:
     st.markdown("""
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
-        <h2>🎅 Bem-vindo!</h2>
+        <h2>Bem-vindo!</h2>
         <p>Este repositório contém todas as ferramentas e sistemas desenvolvidos.</p>
     </div>
     """, unsafe_allow_html=True)
