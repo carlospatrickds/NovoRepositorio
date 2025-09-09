@@ -150,7 +150,7 @@ with col_contact1:
     st.info("**Email:**\carlos.patrick@hotmail.com")
 
 with col_contact2:
-    st.info("**Suporte Técnico:**\nDisponível 24/7")
+    st.info("**W:**\https://wa.me/5581999200504")
 
 with col_contact3:
     st.info("**Status dos Sistemas:**\n✅ Todos operacionais")
