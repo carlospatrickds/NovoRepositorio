@@ -1,7 +1,6 @@
 import streamlit as st
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import io
-import os
 
 def corrigir_rotacao(image):
     """Corrige a rotação automática baseada em metadados EXIF"""
@@ -352,4 +351,4 @@ with tab4:
 
     ### Funcionalidades do Gerador 3x4:
     - Conversão de qualquer foto em múltiplas fotos 3x4
-    - Organização de 10 fotos
+    - Organização
