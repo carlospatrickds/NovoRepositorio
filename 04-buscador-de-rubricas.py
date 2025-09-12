@@ -359,7 +359,9 @@ rubrica_consignacoes_descontos = """
 | 227    | DEVOLUCAO DE CPMF                                |
 | 203    | Consignacao                                      |
 | 216    | Consignado – Empréstimo bancário                 |
+| 242    | ConsignacaoCONTRIBUICAO SINDIAPI 0800 777 5767   |
 | 254    | Consignacao CONTRIBUICAO UNIBAP                  |
+
 | 916    | Consignacao IR na fonte                          |
 | 920    | Consignacao empréstimo da CEF                    |
 | 268    | Consignacao - Cartao                             |
