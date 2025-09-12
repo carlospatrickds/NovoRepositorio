@@ -2,6 +2,8 @@ import streamlit as st
 from PIL import Image, ImageOps
 import io
 
+
+
 def montar_folha_3x4(foto, dpi=300, borda=False):
     # Tamanho do papel 10x15 cm em pixels
     largura_papel_px = int(15 * dpi / 2.54)
@@ -32,7 +34,8 @@ def montar_folha_3x4(foto, dpi=300, borda=False):
 
 # ------------------- INTERFACE STREAMLIT -------------------
 
-st.title("Gerador de Fotos 3x4 em Folha 10x15 📸")
+# Configuração inicial
+st.set_page_config(page_title=" Gerador de Fotos 3x4 em Folha 10x15", layout="centered",  page_icon="📸")
 
 # Criar abas
 tab1, tab2 = st.tabs(["Gerador de Fotos", "Sobre o Projeto"])
