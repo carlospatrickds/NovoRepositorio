@@ -76,7 +76,7 @@ st.markdown('<div class="title">🚀 Meu Repositório de Projetos</div>', unsafe
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown('<h3 class="section-header">📊 Ferramentas Trabalhistas e Previdenciárias</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="section-header">📊 Ferramentas Previdenciárias</h3>', unsafe_allow_html=True)
 
 
     # Link 1 - 🔍 Buscador de rubricas do HISCRE
