@@ -1,167 +1,110 @@
 import streamlit as st
+from PIL import Image, ImageOps
+import io
 
 
 
-# --- VERIFICAÇÃO DE SENHA ---
-SENHA_CORRETA = "23"
-senha_digitada = st.text_input("Digite a senha para acessar a lista de links:", type="password")
-
-if senha_digitada != SENHA_CORRETA:
-    if senha_digitada:  # Só mostra erro se o usuário já digitou algo
-        st.error("Senha incorreta! Acesso negado.")
-    st.stop()  # Para aqui se a senha estiver errada ou vazia
-
-
-# Configuração da página
-st.set_page_config(
-    page_title="Repositório de Links - Meus Projetos",
-    page_icon="🎅",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# CSS personalizado (mesmo código anterior)
-st.markdown("""
-<style>
-    .link-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 25px;
-        border-radius: 15px;
-        margin: 15px 0;
-        color: white;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .link-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-    }
-    .title {
-        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-        color: white;
-        text-align: center;
-        padding: 20px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        font-size: 2.5em;
-        font-weight: bold;
-    }
-    .link-button {
-        background-color: #ffffff;
-        color: #667eea;
-        border: none;
-        padding: 12px 25px;
-        border-radius: 8px;
-        font-weight: bold;
-        text-decoration: none;
-        display: inline-block;
-        margin-top: 15px;
-        transition: background-color 0.3s ease;
-    }
-    .link-button:hover {
-        background-color: #f1f2f6;
-        text-decoration: none;
-        color: #667eea;
-    }
-    .section-header {
-        color: #2c3e50;
-        border-left: 5px solid #ff6b6b;
-        padding-left: 15px;
-        margin: 30px 0 20px 0;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# LISTA DE PROJETOS - AQUI VOCÊ ATUALIZA!
-projetos = [
-    {
-        "categoria": "Trabalhista",
-        "nome": "📅 Cálculo de Multa Diária Corrigida por Faixa",
-        "url": "https://07-calcmulta-logo.streamlit.app/",
-        "descricao": "Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC."
-    },
-    {
-        "categoria": "Trabalhista", 
-        "nome": "⭐ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara",
-        "url": "https://03-anaclara2.streamlit.app/",
-        "descricao": "Sistema com verificação da periculosidade para cálculo de adicionais trabalhistas."
-    },
-    {
-        "categoria": "Previdenciária",
-        "nome": "📊 Cálculo de Acumulação de Benefícios Previdenciários",
-        "url": "https://01-beneficioredutor.streamlit.app/",
-        "descricao": "Calculadora conforme as regras de redução na acumulação de benefícios (EC 103/2019)."
-    },
-    {
-        "categoria": "Técnica",
-        "nome": "🔓 Desbloqueador de Projetos VBA Excel",
-        "url": "https://06-quebrasenhavba.streamlit.app/",
-        "descricao": "Ferramenta para desbloquear e recuperar projetos VBA no Excel."
-    },
-    {
-        "categoria": "Trabalhista",
-        "nome": "⭐ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara",
-        "url": "https://02-anaclara.streamlit.app/",
-        "descricao": "Versão original do sistema de cálculo de adicionais trabalhistas."
-    },
-    # ⬇️ ADICIONE NOVOS PROJETOS AQUI! ⬇️
-    {
-        "categoria": "Técnica",
-        "nome": "🚀 Novo Projeto Incrível",
-        "url": "https://novo-projeto.streamlit.app/",
-        "descricao": "Descrição do seu novo projeto fantástico!"
-    }
-]
-
-# Cabeçalho
-st.markdown('<div class="title">🚀 Meu Repositório de Projetos</div>', unsafe_allow_html=True)
-
-# Separar projetos por categoria
-projetos_trabalhistas = [p for p in projetos if p["categoria"] == "Trabalhista"]
-projetos_tecnicos = [p for p in projetos if p["categoria"] == "Técnica"]
-projetos_previdenciarios = [p for p in projetos if p["categoria"] == "Previdenciária"]
-
-# Layout em colunas
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown('<h3 class="section-header">📊 Ferramentas Trabalhistas e Previdenciárias</h3>', unsafe_allow_html=True)
+def montar_folha_3x4(foto, dpi=300, borda=False):
+    # Tamanho do papel 10x15 cm em pixels
+    largura_papel_px = int(15 * dpi / 2.54)
+    altura_papel_px = int(10 * dpi / 2.54)
     
-    for projeto in projetos_trabalhistas + projetos_previdenciarios:
-        st.markdown(f"""
-        <div class="link-card">
-            <h3>{projeto['nome']}</h3>
-            <p>{projeto['descricao']}</p>
-            <a href="{projeto['url']}" target="_blank">
-                <button class="link-button">🔗 Acessar Ferramenta</button>
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+    # Tamanho da foto 3x4 cm em pixels
+    largura_foto_px = int(3 * dpi / 2.54)
+    altura_foto_px = int(4 * dpi / 2.54)
 
-with col2:
-    st.markdown('<h3 class="section-header">⚙️ Ferramentas Técnicas e Produtividade</h3>', unsafe_allow_html=True)
-    
-    for projeto in projetos_tecnicos:
-        st.markdown(f"""
-        <div class="link-card">
-            <h3>{projeto['nome']}</h3>
-            <p>{projeto['descricao']}</p>
-            <a href="{projeto['url']}" target="_blank">
-                <button class="link-button">🔗 Acessar Ferramenta</button>
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Espaço para futuros projetos
-    if len(projetos_tecnicos) < 3:
-        st.markdown(f"""
-        <div class="link-card">
-            <h3>🚧 Novo Projeto em Desenvolvimento</h3>
-            <p>Em breve uma nova ferramenta estará disponível aqui!</p>
-            <button class="link-button" style="background-color: #95a5a6; color: white;" disabled>
-                ⏳ Em Breve
-            </button>
-        </div>
-        """, unsafe_allow_html=True)
+    # Redimensionar foto para 3x4
+    foto_redimensionada = foto.resize((largura_foto_px, altura_foto_px))
 
-# ... (restante do código igual) ...
+    # Se a pessoa quiser borda, adiciona
+    if borda:
+        foto_redimensionada = ImageOps.expand(foto_redimensionada, border=10, fill="white")
+
+    # Criar folha em branco
+    folha = Image.new("RGB", (largura_papel_px, altura_papel_px), "white")
+
+    # Colar 10 fotos (5 colunas x 2 linhas)
+    for linha in range(2):
+        for coluna in range(5):
+            x = coluna * foto_redimensionada.width
+            y = linha * foto_redimensionada.height
+            folha.paste(foto_redimensionada, (x, y))
+
+    return folha
+
+# ------------------- INTERFACE STREAMLIT -------------------
+
+st.markdown("## 📸 Gerador de Fotos 3x4 em Folha 10x15")
+
+# Configuração inicial
+st.set_page_config(page_title=" Gerador de Fotos 3x4 em Folha 10x15", layout="centered",  page_icon="📸")
+
+# Criar abas
+tab1, tab2 = st.tabs(["Gerador de Fotos", "Sobre o Projeto"])
+
+with tab1:
+    uploaded_file = st.file_uploader("Envie sua foto", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file:
+        foto = Image.open(uploaded_file).convert("RGB")
+
+        # Opção de borda
+        borda = st.checkbox("Adicionar borda branca em cada foto")
+
+        folha = montar_folha_3x4(foto, borda=borda)
+
+        st.image(folha, caption="Prévia da folha 10x15 com fotos 3x4", use_column_width=True)
+
+        buf = io.BytesIO()
+        folha.save(buf, format="JPEG", quality=95, dpi=(300, 300))
+        byte_im = buf.getvalue()
+
+        st.download_button(
+            label="📥 Baixar arquivo pronto (10x15 cm)",
+            data=byte_im,
+            file_name="fotos_3x4_em_10x15.jpg",
+            mime="image/jpeg"
+        )
+
+with tab2:
+    st.header("Sobre o Projeto")
+    
+    st.markdown("""
+    ## Descrição do Código: Gerador de Fotos 3x4 em Folha 10x15
+
+    Este é um aplicativo web desenvolvido em **Streamlit** que automatiza a criação de folhas de fotos 3x4 no formato 10x15 cm, prontas para impressão.
+
+    ### Funcionalidades Principais:
+
+    **📷 Processamento de Imagens:**
+    - Converte qualquer foto enviada pelo usuário em múltiplas fotos 3x4
+    - Organiza 10 fotos (5 colunas × 2 linhas) em uma única folha 10x15 cm
+    - Mantém a alta qualidade com resolução de 300 DPI para impressão
+
+    **⚙️ Opções Personalizáveis:**
+    - Adição opcional de borda branca em cada foto 3x4
+    - Suporte aos formatos JPG, JPEG e PNG
+
+    **📱 Interface Amigável:**
+    - Upload fácil de arquivos via drag-and-drop
+    - Pré-visualização da folha antes do download
+    - Botão de download direto da imagem processada
+
+    ### Tecnologias Utilizadas:
+    - **Streamlit** para a interface web
+    - **PIL (Pillow)** para processamento de imagens
+    - **Python** para a lógica de negócio
+
+    ### Como Funciona:
+    1. O usuário faz upload de uma foto
+    2. O sistema redimensiona a imagem para 3×4 cm
+    3. Repete a foto 10 vezes em uma folha 10×15 cm
+    4. Gera um arquivo JPEG de alta qualidade para impressão
+
+    Ideal para quem precisa de fotos 3x4 para documentos, evitando a necessidade de serviços especializados de revelação.
+    """)
+    
+    st.info("""
+    💡 **Dica:** Para melhores resultados, use uma foto com fundo neutro e boa iluminação, 
+    seguindo os padrões usuais para fotos documentais.
+    """)
