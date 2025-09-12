@@ -195,7 +195,7 @@ with tab2:
     - Para documentos formais, use trajes apropriados e expressão facial neutra
     """)
     
-    st.image("https://images.unsplash.com/photo-1567690346811-22291ebe92ed?w=400&h=300&fit=crop", 
+    st.image("https://lh3.googleusercontent.com/proxy/OXfLNQnaIhzVRmOzJxggH8k5pE5IF0bDWnYR1U3MQ4snANw_Bu_h8gj69GkiNzDqZUNaEMAANGn7GI9jpu0ESRUazi3YKjLPELwLMSL78-p--TTHWJ4w", 
              caption="Exemplo de foto adequada para documentos")
 
 with tab3:
