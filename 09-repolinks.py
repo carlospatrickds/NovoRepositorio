@@ -79,7 +79,7 @@ with col1:
     st.markdown('<h3 class="section-header">📊 Ferramentas Trabalhistas e Previdenciárias</h3>', unsafe_allow_html=True)
 
 
-    # Link 0 - 🔍 Buscador de rubricas do HISCRE
+    # Link 1 - 🔍 Buscador de rubricas do HISCRE
     st.markdown(f"""
     <div class="link-card">
         <h3>🔍 Buscador de Rubricas no HISCRE</h3>
@@ -90,7 +90,7 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
     
-    # Link 1 - Cálculo de Multa
+    # Link 2 - Cálculo de Multa
     st.markdown(f"""
     <div class="link-card">
         <h3>📅 Cálculo de Multa Diária Corrigida por Faixa</h3>
@@ -101,17 +101,7 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
-    # Link 2 - Sistema AnaClara 2
-    st.markdown(f"""
-    <div class="link-card">
-        <h3>✨ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara (com verificação da periculosidade)</h3>
-        <p>Sistema com verificação da periculosidade para cálculo de adicionais trabalhistas.</p>
-        <a href="https://03-anaclara2.streamlit.app/" target="_blank">
-            <button class="link-button">🔗 Acessar Sistema AnaClara</button>
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-
+   
     # Link 3 - Benefício Redutor
     st.markdown(f"""
     <div class="link-card">
@@ -137,7 +127,19 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-    # Link 5 - Sistema AnaClara 1
+    # Link 5 - Sistema AnaClara 2
+    st.markdown(f"""
+    <div class="link-card">
+        <h3>✨ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara (com verificação da periculosidade)</h3>
+        <p>Sistema com verificação da periculosidade para cálculo de adicionais trabalhistas.</p>
+        <a href="https://03-anaclara2.streamlit.app/" target="_blank">
+            <button class="link-button">🔗 Acessar Sistema AnaClara</button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+    # Link 6 - Sistema AnaClara 1
     st.markdown(f"""
     <div class="link-card">
         <h3>⭐ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara</h3>
