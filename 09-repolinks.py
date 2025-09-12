@@ -83,7 +83,7 @@ with col1:
     st.markdown(f"""
     <div class="link-card">
         <h3>🔍 Buscador de Rubricas no HISCRE</h3>
-        <p>Informe até 4 rubricas específicas para buscar </p>
+        <p>Informe até 4 rubricas específicas para buscar | Organiza em ordem cronológica por competência | Você pode baixar o resultado em CSV </p>
         <a href="https://04-buscador-de-rubricas.streamlit.app/" target="_blank">
             <button class="link-button">🔗 Acessar: 🔍 Buscador de Rubricas no HISCRE </button>
         </a>
