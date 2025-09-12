@@ -150,7 +150,7 @@ def extrair_dados_pdf(file, rubricas_filtrar):
                         status_atual = "Não Pago"
 
                     # Rubrica
-                    rubrica_match = re.match(r'^(\d{3})\s+([A-Z\s\.\-ÇÃÁÉÍÓÚÂÊÔ\/]+)\s+R\$[\s]*([\d\.,]+)', linha)
+                    rubrica_match = re.match(r'^(\d{3})\s+([A-Z0-9\s\.\-ÇÃÁÉÍÓÚÂÊÔ\/]+)\s+R\$[\s]*([\d\.,]+)', linha)
                     if rubrica_match:
                         rubrica = rubrica_match.group(1)
                         descricao = rubrica_match.group(2).strip()
