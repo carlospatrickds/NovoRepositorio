@@ -33,7 +33,7 @@ def montar_folha_3x4(foto, dpi=300, borda=False):
     return folha
 
 # ------------------- INTERFACE STREAMLIT -------------------
-
+st.markdown("## 📄 teste")
 # Configuração inicial
 st.set_page_config(page_title=" Gerador de Fotos 3x4 em Folha 10x15", layout="centered",  page_icon="📸")
 
