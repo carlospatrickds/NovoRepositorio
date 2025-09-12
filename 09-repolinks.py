@@ -85,7 +85,7 @@ with col1:
         <h3>🔍 Buscador de Rubricas no HISCRE</h3>
         <p>Informe até 4 rubricas específicas para buscar </p>
         <a href="https://04-buscador-de-rubricas.streamlit.app/" target="_blank">
-            <button class="link-button">🔗 ITodas as informações do HISCRE são processadas apenas localmente, garantindo confidencialidade e segurança. </button>
+            <button class="link-button">🔗 Acessar: 🔍 Buscador de Rubricas no HISCRE </button>
         </a>
     </div>
     """, unsafe_allow_html=True)
