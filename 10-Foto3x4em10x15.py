@@ -21,6 +21,10 @@ def corrigir_rotacao(image):
         pass
     return image
 
+def rotacionar_imagem(image, angulo):
+    """Rotaciona a imagem pelo ângulo especificado"""
+    return image.rotate(angulo, expand=True)
+
 def montar_folha_3x4(foto, dpi=300, borda=False, espacamento=0):
     # Tamanho do papel 10x15 cm em pixels
     largura_papel_px = int(15 * dpi / 2.54)
@@ -111,10 +115,32 @@ with tab1:
             st.subheader("Opções de Personalização")
             borda = st.checkbox("Adicionar borda branca em cada foto", value=True)
             espacamento = st.slider("Espaçamento entre fotos (pixels)", 0, 20, 0)
-            rotacionar = st.checkbox("Rotacionar foto 180° (corrigir orientação)")
             
-            if rotacionar:
-                foto = foto.rotate(180, expand=True)
+            # Controles de rotação com botões para 90, 180 e 270 graus
+            st.subheader("Controles de Rotação")
+            col_rot1, col_rot2, col_rot3, col_rot4 = st.columns(4)
+            
+            with col_rot1:
+                if st.button("90° ⤾", use_container_width=True):
+                    st.session_state.rotacao = (st.session_state.get('rotacao', 0) + 90) % 360
+                    
+            with col_rot2:
+                if st.button("180° ↻", use_container_width=True):
+                    st.session_state.rotacao = (st.session_state.get('rotacao', 0) + 180) % 360
+                    
+            with col_rot3:
+                if st.button("270° ⤿", use_container_width=True):
+                    st.session_state.rotacao = (st.session_state.get('rotacao', 0) + 270) % 360
+                    
+            with col_rot4:
+                if st.button("Redefinir ↺", use_container_width=True):
+                    st.session_state.rotacao = 0
+            
+            # Aplicar rotação se especificado
+            rotacao = st.session_state.get('rotacao', 0)
+            if rotacao != 0:
+                foto = rotacionar_imagem(foto, rotacao)
+                st.info(f"Foto rotacionada em {rotacao} graus")
             
             col1_1, col1_2 = st.columns(2)
             with col1_1:
@@ -149,12 +175,18 @@ with tab2:
     ### Instruções Passo a Passo:
     
     1. **Envie sua foto**: Clique em "Browse files" ou arraste uma foto para a área de upload
-    2. **Ajuste a orientação**: Se necessário, use a opção "Rotacionar foto 180°" para corrigir a orientação
+    2. **Ajuste a orientação**: Use os botões de rotação (90°, 180°, 270°) para corrigir a orientação
     3. **Personalize**: 
        - Adicione bordas brancas se desejar
        - Ajuste o espaçamento entre as fotos
     4. **Visualize**: Veja a prévia da folha com 10 fotos 3x4
     5. **Baixe**: Clique no botão de download para salvar a imagem pronta para impressão
+    
+    ### Controles de Rotação:
+    - **90° ⤾**: Gira a foto 90 graus no sentido anti-horário
+    - **180° ↻**: Gira a foto 180 graus (de cabeça para baixo)
+    - **270° ⤿**: Gira a foto 270 graus no sentido anti-horário (ou 90 graus no sentido horário)
+    - **Redefinir ↺**: Volta a foto à sua orientação original
     
     ### Dicas para Melhores Resultados:
     - Use uma foto com fundo neutro (branco ou claro)
@@ -181,11 +213,12 @@ with tab3:
     - Organiza 10 fotos (5 colunas × 2 linhas) em uma única folha 10x15 cm
     - Mantém a alta qualidade com resolução de 300 DPI para impressão
     - **Corrige automaticamente a rotação** baseada em metadados EXIF
+    - **Controles de rotação manual** em incrementos de 90 graus
 
     **⚙️ Opções Personalizáveis:**
     - Adição opcional de borda branca em cada foto 3x4
     - Controle de espaçamento entre as fotos
-    - Correção manual de rotação (180°)
+    - Correção manual de rotação (90°, 180°, 270°)
     - Suporte aos formatos JPG, JPEG e PNG
 
     **📱 Interface Amigável:**
@@ -201,9 +234,10 @@ with tab3:
     ### Como Funciona:
     1. O usuário faz upload de uma foto
     2. O sistema corrige a rotação automática baseada em metadados EXIF
-    3. Redimensiona a imagem para 3×4 cm mantendo a proporção
-    4. Repete a foto 10 vezes em uma folha 10×15 cm
-    5. Gera um arquivo JPEG de alta qualidade para impressão
+    3. O usuário pode ajustar adicionalmente a rotação com controles de 90°
+    4. Redimensiona a imagem para 3×4 cm mantendo a proporção
+    5. Repete a foto 10 vezes em uma folha 10×15 cm
+    6. Gera um arquivo JPEG de alta qualidade para impressão
 
     Ideal para quem precisa de fotos 3x4 para documentos, evitando a necessidade de serviços especializados de revelação.
     """)
@@ -211,7 +245,7 @@ with tab3:
     st.info("""
     💡 **Dica:** Muitos dispositivos móveis aplicam rotação automática às fotos com base nos sensores 
     do aparelho. Nosso sistema tenta detectar e corrigir isso automaticamente, mas você também pode 
-    usar o controle manual se necessário.
+    usar os controles manuais de rotação para ajustes precisos.
     """)
 
 # Adicionar um footer
