@@ -1,6 +1,45 @@
 import streamlit as st
-from PIL import Image, ImageOps, ImageDraw, ImageFont
+from PIL import Image, ImageOps, ImageDraw
 import io
+import subprocess
+import sys
+import importlib
+
+# Lista de bibliotecas necessárias para outros apps
+REQUIRED_LIBRARIES = [
+    "fpdf2", "pdfplumber", "PyMuPDF", "unidecode", "sidrapy", 
+    "num2words", "html5lib", "beautifulsoup4", "PyGithub", "workalendar"
+]
+
+def install_missing_libraries():
+    """Verifica e instala bibliotecas ausentes"""
+    missing_libs = []
+    
+    for lib in REQUIRED_LIBRARIES:
+        try:
+            importlib.import_module(lib)
+        except ImportError:
+            missing_libs.append(lib)
+    
+    if missing_libs:
+        st.warning(f"Bibliotecas ausentes detectadas: {', '.join(missing_libs)}")
+        
+        if st.button("Instalar Bibliotecas Ausentes"):
+            with st.spinner("Instalando bibliotecas..."):
+                for lib in missing_libs:
+                    try:
+                        # Usar pip para instalar a biblioteca
+                        subprocess.check_call([sys.executable, "-m", "pip", "install", lib])
+                        st.success(f"✓ {lib} instalada com sucesso!")
+                    except subprocess.CalledProcessError:
+                        st.error(f"✗ Falha ao instalar {lib}")
+            
+            st.success("Instalação concluída! Reinicie o aplicativo para carregar as bibliotecas.")
+            return False
+        return False
+    else:
+        st.success("Todas as bibliotecas necessárias estão instaladas!")
+        return True
 
 def corrigir_rotacao(image):
     """Corrige a rotação automática baseada em metadados EXIF"""
@@ -76,22 +115,15 @@ def criar_polaroid(imagem, texto="", tamanho=(800, 1000), cor_borda="white", esp
     # Adicionar texto se fornecido
     if texto:
         try:
-            # Tentar carregar uma fonte (pode não estar disponível em todos os sistemas)
-            try:
-                fonte = ImageFont.truetype("arial.ttf", 30)
-            except:
-                # Fallback para fonte padrão
-                fonte = ImageFont.load_default()
-            
             draw = ImageDraw.Draw(polaroid)
             # Centralizar o texto na parte inferior
-            bbox = draw.textbbox((0, 0), texto, font=fonte)
+            bbox = draw.textbbox((0, 0), texto)
             largura_texto = bbox[2] - bbox[0]
             altura_texto = bbox[3] - bbox[1]
             x_texto = (tamanho[0] - largura_texto) // 2
             y_texto = tamanho[1] - 60 - altura_texto // 2
             
-            draw.text((x_texto, y_texto), texto, font=fonte, fill="black")
+            draw.text((x_texto, y_texto), texto, fill="black")
         except:
             pass
     
@@ -141,7 +173,7 @@ if 'rotacao_polaroid' not in st.session_state:
     st.session_state.rotacao_polaroid = 0
 
 # Criar abas
-tab1, tab2, tab3, tab4 = st.tabs(["Gerador de Fotos 3x4", "Modelo Polaroid", "Como Usar", "Sobre o Projeto"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Gerador de Fotos 3x4", "Modelo Polaroid", "Bibliotecas", "Como Usar", "Sobre o Projeto"])
 
 with tab1:
     st.title("Gerador de Fotos 3x4 em Folha 10x15 📸")
@@ -297,10 +329,40 @@ with tab2:
             exemplo_img = Image.new("RGB", (600, 800), "#f0f0f0")
             draw = ImageDraw.Draw(exemplo_img)
             draw.rectangle([50, 50, 550, 650], fill="#dddddd")
-            draw.text((300, 700), "Sua foto aqui", fill="#666666", anchor="mm")
+            draw.text((300, 700), "Sua foto aqui", fill="#666666")
             st.image(exemplo_img, caption="Exemplo de layout Polaroid", use_column_width=True)
 
 with tab3:
+    st.header("Gerenciador de Bibliotecas")
+    st.info("Esta aba verifica e instala bibliotecas necessárias para outros aplicativos.")
+    
+    st.subheader("Bibliotecas Necessárias")
+    st.write("As seguintes bibliotecas são necessárias para outros aplicativos:")
+    
+    for i, lib in enumerate(REQUIRED_LIBRARIES):
+        try:
+            importlib.import_module(lib)
+            st.success(f"{i+1}. {lib} ✓ (Instalada)")
+        except ImportError:
+            st.error(f"{i+1}. {lib} ✗ (Ausente)")
+    
+    # Verificar e instalar bibliotecas ausentes
+    install_missing_libraries()
+    
+    st.subheader("Informações Adicionais")
+    st.markdown("""
+    Estas bibliotecas são usadas para:
+    - **fpdf2**: Geração de arquivos PDF
+    - **pdfplumber/PyMuPDF**: Extração e manipulação de PDFs
+    - **unidecode**: Conversão de texto Unicode para ASCII
+    - **sidrapy**: Acesso a dados do SIDRA/IBGE
+    - **num2words**: Conversão de números em palavras
+    - **html5lib/beautifulsoup4**: Web scraping e parsing HTML
+    - **PyGithub**: Interação com a API do GitHub
+    - **workalendar**: Cálculos com dias úteis e feriados
+    """)
+
+with tab4:
     st.header("Como Usar o Gerador de Fotos")
     
     st.markdown("""
@@ -332,7 +394,7 @@ with tab3:
     - Fotografias com boa resolução produzem melhores resultados
     """)
 
-with tab4:
+with tab5:
     st.header("Sobre o Projeto")
     
     st.markdown("""
@@ -351,4 +413,26 @@ with tab4:
 
     ### Funcionalidades do Gerador 3x4:
     - Conversão de qualquer foto em múltiplas fotos 3x4
-    - Organização
+    - Organização de 10 fotos (5 colunas × 2 linhas) em uma única folha 10x15 cm
+    - Mantém a alta qualidade com resolução de 300 DPI para impressão
+    - Correção automática de rotação baseada em metadados EXIF
+    - Controles de rotação manual em incrementos de 90 graus
+
+    ### Funcionalidades do Criador de Polaroids:
+    - Transformação de fotos em estilo Polaroid
+    - Personalização de cor da borda
+    - Adição de legendas personalizadas
+    - Opções de tamanho (Pequeno, Médio, Grande)
+    - Controles de rotação para ajuste preciso
+
+    ### Gerenciador de Bibliotecas:
+    - Verificação automática de bibliotecas necessárias
+    - Instalação simplificada com um clique
+    - Suporte para múltiplos aplicativos
+
+    Ideal para quem precisa de fotos 3x4 para documentos ou quer criar belas imagens estilo Polaroid, evitando a necessidade de serviços especializados.
+    """)
+
+# Adicionar um footer
+st.markdown("---")
+st.markdown("📸 *Gerador de Fotos 3x4 e Polaroid - Criado com Streamlit*")
