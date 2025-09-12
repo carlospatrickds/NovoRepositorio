@@ -150,6 +150,18 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
+    # Link - 7 - Foto3x4em10x15
+    st.markdown(f"""
+    <div class="link-card">
+        <h3>📷 Transformar qualquer foto em 3x4 e num grid de 10x15</h3>
+        <p>Este é um aplicativo web desenvolvido em Streamlit que automatiza a criação de folhas de fotos 3x4 no formato 10x15 cm, prontas para impressão</p>
+        <a href="https://10-foto3x4em10x15.streamlit.app/" target="_blank">
+            <button class="link-button">🔗 foto em 3x4 e num grid de 10x15</button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    
     # Espaço para futuros projetos
     st.markdown(f"""
     <div class="link-card">
