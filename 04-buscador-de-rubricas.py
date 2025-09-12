@@ -69,6 +69,7 @@ descricoes_rubricas = {
     "219-250": "Diversas contribuições sindicais e associativas",
     "233": "Desconto para Verificação de Teto",
     "236": "Décimo Terceiro Salário – Débito",
+    "242": "CONTRIBUICAO SINDIAPI 0800 777 5767",
     "251": "Décimo Terceiro Salário Pago a Maior",
     "252": "Desconto por Acumulação de Benefício Já Concedido",
     "253": "Desconto por Acumulação de Benefício – 13º Salário",
@@ -301,6 +302,7 @@ rubrica_base_tributacao_ir = """
 | 214    | Consignacao sobre 13º Salário                 | Descontos consignados que afetam o 13º salário e a base de IR.           |
 | 233    | Desconto para Verificação de Teto             | Ajuste para verificar se o valor ultrapassa o teto de contribuição.      |
 | 236    | Décimo Terceiro Salário – Débito              | Valor do 13º salário que entra como débito na base de cálculo.           |
+| 242    | CONTRIBUICAO SINDIAPI 0800 777 5767"          | Descontos consignados - associação                                       | 
 | 251    | Décimo Terceiro Salário Pago a Maior          | Correção por pagamento excedente de 13º salário.                         |
 | 252    | Desconto por Acumulação de Benefício Já Concedido | Ajuste por benefícios acumulados que já foram considerados.         |
 | 253    | Desconto por Acumulação de Benefício – 13º Salário | Mesma lógica do anterior, mas aplicado ao 13º salário.           |
