@@ -77,6 +77,18 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown('<h3 class="section-header">📊 Ferramentas Trabalhistas e Previdenciárias</h3>', unsafe_allow_html=True)
+
+
+    # Link 0 - 🔍 Buscador de rubricas do HISCRE
+    st.markdown(f"""
+    <div class="link-card">
+        <h3>🔍 Buscador de Rubricas no HISCRE</h3>
+        <p>Informe até 4 rubricas específicas para buscar </p>
+        <a href="https://04-buscador-de-rubricas.streamlit.app/" target="_blank">
+            <button class="link-button">🔗 ITodas as informações do HISCRE são processadas apenas localmente, garantindo confidencialidade e segurança. </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Link 1 - Cálculo de Multa
     st.markdown(f"""
