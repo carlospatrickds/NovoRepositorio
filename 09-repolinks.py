@@ -165,6 +165,18 @@ with col2:
         </a>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Link - 8 - Calculadora de IR 2024 fenomenal com base em planilha
+    st.markdown(f"""
+    <div class="link-card">
+        <h3>📷 Transformar qualquer foto em 3x4 e num grid de 10x15</h3>
+        <p>Cálculo de INSS com base nas faixas da previdência | Cálculo de IR usando both métodos (tradicional e simplificado)| Comparação entre os dois métodos para mostrar qual é mais vantajoso |Tabelas de referência para consulta | Interface amigável com sidebar para entrada de dados</p>
+        <a href="https://12-planilhair24.streamlit.app//" target="_blank">
+            <button class="link-button">🔗 foto em 3x4 e num grid de 10x15</button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     
     # Espaço para futuros projetos
