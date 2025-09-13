@@ -1,5 +1,10 @@
 import streamlit as st
 
+# Configuração inicial
+st.set_page_config(page_title="Repósitorio de Links", layout="centered",  page_icon="🗄️")
+
+
+
 # --- VERIFICAÇÃO DE SENHA ---
 SENHA_CORRETA = "23"
 senha_digitada = st.text_input("Digite a senha para acessar a lista de links:", type="password")
