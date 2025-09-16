@@ -372,7 +372,6 @@ rubrica_consignacoes_descontos = """
 | 916    | Consignacao IR na fonte                          |
 | 920    | Consignacao empréstimo da CEF                    |
 | 268    | Consignacao - Cartao                             |
-
 | 383    | RESERVA CARTÃO CONSIGNADO                        |
 | 384    | DESCONTO SIMPLIFICADO DE IR                      |
 | 385    | DESCONTO SIMPLIFICADO DE IR SOBRE 13             |
