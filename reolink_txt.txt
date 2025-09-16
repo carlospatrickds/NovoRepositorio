@@ -8,3 +8,6 @@
         </a>
     </div>
     """, unsafe_allow_html=True)
+
+
+https://emojidb.org/pdf-emojis
