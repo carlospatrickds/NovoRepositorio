@@ -75,6 +75,7 @@ descricoes_rubricas = {
     "253": "Desconto por Acumulação de Benefício – 13º Salário",
     "254": "Consignacao CONTRIBUICAO UNIBAP",
     "268": "CONSIGNACAO - CARTAO",
+    "288": "CONTRIB. AASAP 0800 202 0177",  # Nova rubrica
     "302": "Abatimento IR por Dependente",
     "303": "Abatimento a Beneficiário Maior de 65 Anos",
     "304": "Desconto por Dependente sobre 13º Salário",
@@ -85,10 +86,15 @@ descricoes_rubricas = {
     "312": "Desconto de Consignação no IR – 13º Salário",
     "313": "IR Não Recolhido por Ordem Judicial",
     "314": "IR Não Recolhido por Ordem Judicial – 13º Salário",
+    "316": "SALDO DEVEDOR ARREDONDAMENTO DE CREDITOS",  # Nova rubrica
     "320": "IR sobre Décimo Terceiro Devolvido",
+    "323": "ADIANTAMENTO DE 13 COMPETENCIA ANTERIOR",  # Nova rubrica
     "365": "Indenização Talidomida – Lei 12.190/2010",
     "373": "CP – Artigo 29 ACP-MP242",
     "375": "CP – Indenização seringueiros",
+    "383": "RESERVA CARTÃO CONSIGNADO",  # Nova rubrica
+    "384": "DESCONTO SIMPLIFICADO DE IR",  # Nova rubrica
+    "385": "DESCONTO SIMPLIFICADO DE IR SOBRE 13",  # Nova rubrica
     "903": "Saldo de Imposto de Renda – Positivo",
     "904": "Saldo de Imposto de Renda – Negativo",
     "916": "CONSIGNAÇÃO IR NA FONTE",
