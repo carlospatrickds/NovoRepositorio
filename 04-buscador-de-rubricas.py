@@ -363,9 +363,9 @@ rubrica_consignacoes_descontos = """
 🟣 **Consignações e Descontos**
 | Código | Descrição                                        |
 |--------|--------------------------------------------------|
+|  203    | Consignacao                                     |
+|  216    | Consignado – Empréstimo bancário                |
 | 227    | DEVOLUCAO DE CPMF                                |
-| 203    | Consignacao                                      |
-| 216    | Consignado – Empréstimo bancário                 |
 | 242    | ConsignacaoCONTRIBUICAO SINDIAPI 0800 777 5767   |
 | 254    | Consignacao CONTRIBUICAO UNIBAP                  |
 | 288    | CONTRIB. AASAP 0800 202 0177                     |
