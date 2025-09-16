@@ -66,7 +66,8 @@ descricoes_rubricas = {
     "217": "EMPRÉSTIMO SOBRE A RMC",
     "218": "13. SALÁRIO PAGO COMPETÊNCIAS ANTERIORES",
     "227": "DEVOLUCAO DE CPMF",
-    "219-250": "Diversas contribuições sindicais e associativas",
+#"219-250": "Diversas contribuições sindicais e associativas",
+    
     "233": "Desconto para Verificação de Teto",
     "236": "Décimo Terceiro Salário – Débito",
     "242": "CONTRIBUICAO SINDIAPI 0800 777 5767",
@@ -367,10 +368,17 @@ rubrica_consignacoes_descontos = """
 | 216    | Consignado – Empréstimo bancário                 |
 | 242    | ConsignacaoCONTRIBUICAO SINDIAPI 0800 777 5767   |
 | 254    | Consignacao CONTRIBUICAO UNIBAP                  |
-
+| 288    | CONTRIB. AASAP 0800 202 0177                     |
 | 916    | Consignacao IR na fonte                          |
 | 920    | Consignacao empréstimo da CEF                    |
 | 268    | Consignacao - Cartao                             |
+
+| 383    | RESERVA CARTÃO CONSIGNADO                        |
+| 384    | DESCONTO SIMPLIFICADO DE IR                      |
+| 385    | DESCONTO SIMPLIFICADO DE IR SOBRE 13             |
+| 323    | ADIANTAMENTO DE 13 COMPETENCIA ANTERIOR          |
+| 316    | SALDO DEVEDOR ARREDONDAMENTO DE CREDITOS         |
+
 """
 
 rubrica_impostos_contribuicoes = """
