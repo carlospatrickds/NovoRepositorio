@@ -21,6 +21,8 @@ beautifulsoup4
 # GitHub API
 PyGithub
 
+PyPDF2 #16092025
+
 #Calendário para verificação de dias úteis
 workalendar
 
