@@ -177,6 +177,17 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
+    # Link - 9 - Unir pdfs
+    st.markdown(f"""
+    <div class="link-card">
+        <h3>📕 Unir e dividir arquivos em pdf</h3>
+        <p>Unir e dividir arquivos em pdf, funcionalidades de redução de tamanho em aprimoração.</p>
+        <a href="https://14pdffuz.streamlit.app///" target="_blank">
+            <button class="link-button">📕 Unir pdf </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     
     # Espaço para futuros projetos
