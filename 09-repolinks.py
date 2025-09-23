@@ -118,10 +118,23 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
+# link 4 -CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS
+st.markdown(f"""
+    <div class="link-card">
+        <h3>📊 CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS</h3>
+        <p>Calculadora conforme as regras de redução na acumulação de benefícios (EC 103/2019).</p>
+        <a href="https://14-redutorbenefnovo.streamlit.app////" target="_blank">
+            <button class="link-button">🔗 Calculadora de acumulação </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+#COLUNA 2
+
 with col2:
     st.markdown('<h3 class="section-header">⚙️ Ferramentas Técnicas e Produtividade</h3>', unsafe_allow_html=True)
     
-    # Link 4 - Desbloqueador VBA
+    # Link 1 - Desbloqueador VBA
     st.markdown(f"""
     <div class="link-card">
         <h3>🔓 Desbloqueador de Projetos VBA Excel</h3>
@@ -132,7 +145,7 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-    # Link 5 - Sistema AnaClara 2
+    # Link 2 - Sistema AnaClara 2
     st.markdown(f"""
     <div class="link-card">
         <h3>✨ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara (com verificação da periculosidade)</h3>
@@ -144,7 +157,7 @@ with col2:
     """, unsafe_allow_html=True)
 
 
-    # Link 6 - Sistema AnaClara 1
+    # Link 3 - Sistema AnaClara 1
     st.markdown(f"""
     <div class="link-card">
         <h3>⭐ Sistema de Cálculo de Adicionais Trabalhistas - AnaClara</h3>
@@ -155,7 +168,7 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-    # Link - 7 - Foto3x4em10x15
+    # Link - 4 - Foto3x4em10x15
     st.markdown(f"""
     <div class="link-card">
         <h3>📷 Transformar qualquer foto em 3x4 e num grid de 10x15</h3>
@@ -166,7 +179,7 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
     
-    # Link - 8 - Calculadora de IR 2024 fenomenal com base em planilha
+    # Link - 5 - Calculadora de IR 2024 fenomenal com base em planilha
     st.markdown(f"""
     <div class="link-card">
         <h3>Calculadora de IR 2024 fenomenal com base em planilha</h3>
@@ -177,7 +190,7 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-    # Link - 9 - Unir pdfs
+    # Link - 6 - Unir pdfs
     st.markdown(f"""
     <div class="link-card">
         <h3>📕 Unir e dividir arquivos em pdf</h3>
@@ -188,15 +201,6 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown(f"""
-    <div class="link-card">
-        <h3>📊 CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS</h3>
-        <p>Calculadora conforme as regras de redução na acumulação de benefícios (EC 103/2019).</p>
-        <a href="https://14-redutorbenefnovo.streamlit.app////" target="_blank">
-            <button class="link-button">🔗 Calculadora de acumulação </button>
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
 
     
     # Espaço para futuros projetos
