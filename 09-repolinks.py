@@ -188,6 +188,15 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
+st.markdown(f"""
+    <div class="link-card">
+        <h3>📊 CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS</h3>
+        <p>Calculadora conforme as regras de redução na acumulação de benefícios (EC 103/2019).</p>
+        <a href="https://14-redutorbenefnovo.streamlit.app////" target="_blank">
+            <button class="link-button">🔗 Calculadora de acumulação </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
 
     
     # Espaço para futuros projetos
