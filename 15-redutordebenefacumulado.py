@@ -5,9 +5,7 @@ import base64
 from fpdf import FPDF
 import tempfile
 from unidecode import unidecode
-import requests
-from io import BytesIO
-from PIL import Image
+import os
 
 # Configuração da página
 st.set_page_config(
@@ -100,22 +98,17 @@ def gerar_pdf_acumulacao(resultados, numero_processo, polo_ativo, polo_passivo, 
         # Configurar margens
         pdf.set_margins(left=15, top=15, right=15)
         
-        # Tentar usar fonte DejaVu, fallback para Arial
-        try:
-            FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-            pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-            pdf.set_font("DejaVu", size=10)
-        except:
-            pdf.set_font("Arial", size=10)
+        # Usar fonte Arial padrão (suporta melhor caracteres)
+        pdf.set_font("Arial", size=10)
         
-        # CABEÇALHO DO PDF (igual ao do Streamlit)
+        # CABEÇALHO DO PDF (sem emojis - usando texto simples)
         pdf.set_fill_color(240, 242, 246)  # Cor de fundo similar ao Streamlit
         pdf.rect(10, 10, 190, 40, style='F')  # Retângulo de fundo
         
-        # Logo (espaço reservado - no PDF usaremos texto)
+        # Área da "logo" - usando texto em vez de emoji
         pdf.set_xy(15, 15)
         pdf.set_font("Arial", "B", 16)
-        pdf.cell(30, 10, "⚖️", 0, 0, 'C')  # Ícone no lugar da logo
+        pdf.cell(30, 10, "LOGO", 0, 0, 'C')  # Texto simples no lugar do emoji
         
         # Título e informações do processo
         pdf.set_xy(50, 15)
@@ -174,7 +167,9 @@ def gerar_pdf_acumulacao(resultados, numero_processo, polo_ativo, polo_passivo, 
         # Dados da tabela
         pdf.set_font("Arial", "", 9)
         for _, row in resultados['detalhes_df'].iterrows():
-            pdf.cell(50, 6, unidecode(str(row['Faixa'])), 1, 0)
+            # Usar unidecode para garantir compatibilidade de caracteres
+            faixa_texto = unidecode(str(row['Faixa']))
+            pdf.cell(50, 6, faixa_texto, 1, 0)
             pdf.cell(45, 6, f"R$ {row['Valor da Faixa (R$)']:,.2f}", 1, 0, 'R')
             pdf.cell(30, 6, f"{row['Percentual Aplicado']:.0%}", 1, 0, 'C')
             pdf.cell(45, 6, f"R$ {row['Valor Recebido (R$)']:,.2f}", 1, 1, 'R')
@@ -191,12 +186,14 @@ def gerar_pdf_acumulacao(resultados, numero_processo, polo_ativo, polo_passivo, 
             pdf.set_font("Arial", "B", 10)
             pdf.cell(0, 8, "OBSERVAÇÕES:", 0, 1)
             pdf.set_font("Arial", "I", 9)
-            pdf.multi_cell(0, 5, unidecode(observacoes.strip()))
+            # Usar unidecode nas observações também
+            observacoes_ascii = unidecode(observacoes.strip())
+            pdf.multi_cell(0, 5, observacoes_ascii)
             pdf.ln(5)
         
         # Rodapé com assinatura eletrônica
         pdf.set_font("Arial", "I", 8)
-        pdf.cell(0, 6, f"Documento datado e assinado eletronicamente em {datetime.now().strftime('%d/%m/%Y às %H:%M')}.", 0, 1, 'C')
+        pdf.cell(0, 6, f"Documento datado e assinado eletronicamente em {datetime.now().strftime('%d/%m/%Y as %H:%M')}.", 0, 1, 'C')
         
         # Gerar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -417,7 +414,9 @@ def main():
                         )
                         
                         if pdf_data:
-                            nome_arquivo = f"acumulacao_{st.session_state.numero_processo}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                            # Limpar caracteres especiais do nome do arquivo
+                            nome_processo_limpo = unidecode(st.session_state.numero_processo).replace(' ', '_')
+                            nome_arquivo = f"acumulacao_{nome_processo_limpo}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
                             
                             st.download_button(
                                 "⬇️ Baixar PDF Gerado",
