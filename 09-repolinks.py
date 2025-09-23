@@ -36,7 +36,7 @@ st.markdown("""
     }
     .link-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 8px 15px rgba(255, 0, 0, 0.2);
     }
     .title {
         background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
