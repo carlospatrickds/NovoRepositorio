@@ -200,7 +200,7 @@ st.markdown(f"""
 
     
     # Espaço para futuros projetos
-    st.markdown(f"""
+st.markdown(f"""
     <div class="link-card">
         <h3>🚧 Novo Projeto em Desenvolvimento</h3>
         <p>Em breve uma nova ferramenta estará disponível aqui!</p>
