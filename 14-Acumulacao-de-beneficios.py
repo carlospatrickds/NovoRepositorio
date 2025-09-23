@@ -493,8 +493,7 @@ def main():
         st.markdown("""
         ### Fonte:
         - Emenda Constitucional nº 103/2019
-        #- Lei Complementar Municipal de Angra dos Reis nº 014/2021
-        - Portaria MTPS nº 1.467/2022
+        - Portaria MTPS nº 1.467/2022 - https://www.gov.br/previdencia/pt-br/assuntos/rpps/destaques/portaria-mtp-no-1-467-de-02-junho-de-2022
         """)
 
 if __name__ == "__main__":
