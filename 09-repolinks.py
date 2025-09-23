@@ -118,8 +118,8 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
-# link 4 -CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS
-st.markdown(f"""
+    # link 4 -CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS
+    st.markdown(f"""
     <div class="link-card">
         <h3>📊 CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS</h3>
         <p>Calculadora conforme as regras de redução na acumulação de benefícios (EC 103/2019).</p>
