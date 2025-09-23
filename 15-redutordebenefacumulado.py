@@ -5,7 +5,16 @@ import base64
 from fpdf import FPDF
 import tempfile
 from unidecode import unidecode
-import os
+import locale
+
+# Configurar locale para formato brasileiro
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+    except:
+        pass
 
 # Configuração da página
 st.set_page_config(
@@ -24,6 +33,13 @@ SALARIOS_MINIMOS = {
     2024: {month: 1412.00 for month in range(1, 13)},
     2025: {month: 1518.00 for month in range(1, 13)}
 }
+
+def formatar_moeda_br(valor):
+    """Formata valor no padrão monetário brasileiro: 0.000,00"""
+    try:
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return f"R$ {valor:.2f}"
 
 def obter_salario_minimo(data):
     """Retorna o salário mínimo vigente na data especificada"""
@@ -98,102 +114,97 @@ def gerar_pdf_acumulacao(resultados, numero_processo, polo_ativo, polo_passivo, 
         # Configurar margens
         pdf.set_margins(left=15, top=15, right=15)
         
-        # Usar fonte Arial padrão (suporta melhor caracteres)
+        # Usar fonte Arial que suporta melhor caracteres especiais
         pdf.set_font("Arial", size=10)
         
-        # CABEÇALHO DO PDF (sem emojis - usando texto simples)
-        pdf.set_fill_color(240, 242, 246)  # Cor de fundo similar ao Streamlit
-        pdf.rect(10, 10, 190, 40, style='F')  # Retângulo de fundo
-        
-        # Área da "logo" - usando texto em vez de emoji
-        pdf.set_xy(15, 15)
-        pdf.set_font("Arial", "B", 16)
-        pdf.cell(30, 10, "LOGO", 0, 0, 'C')  # Texto simples no lugar do emoji
-        
-        # Título e informações do processo
-        pdf.set_xy(50, 15)
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, "CÁLCULO DE ACUMULAÇÃO DE BENEFÍCIOS", 0, 1)
-        
-        pdf.set_xy(50, 25)
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(40, 5, "Número do Processo:", 0, 0)
-        pdf.cell(0, 5, unidecode(numero_processo) if numero_processo else "Não informado", 0, 1)
-        
-        pdf.set_xy(50, 30)
-        pdf.cell(40, 5, "Polo Ativo:", 0, 0)
-        pdf.cell(0, 5, unidecode(polo_ativo) if polo_ativo else "Não informado", 0, 1)
-        
-        pdf.set_xy(50, 35)
-        pdf.cell(40, 5, "Polo Passivo:", 0, 0)
-        pdf.cell(0, 5, unidecode(polo_passivo) if polo_passivo else "Não informado", 0, 1)
-        
-        pdf.ln(45)  # Espaço após o cabeçalho
-        
-        # Dados do cálculo
+        # Cabeçalho com informações do processo
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "RESULTADO DO CÁLCULO", 0, 1)
+        pdf.cell(0, 8, "CALCULO DE ACUMULACAO DE BENEFICIOS", ln=True, align="C")
+        pdf.ln(5)
+        
+        # Informações do processo
         pdf.set_font("Arial", "", 10)
+        pdf.cell(40, 6, "Numero do Processo:", 0, 0)
+        pdf.cell(0, 6, numero_processo if numero_processo else "Nao informado", ln=True)
         
-        pdf.cell(60, 6, "Data do benefício:", 0, 0)
-        pdf.cell(0, 6, resultados['data_beneficio'].strftime("%d/%m/%Y"), 0, 1)
+        pdf.cell(40, 6, "Polo Ativo:", 0, 0)
+        pdf.cell(0, 6, polo_ativo if polo_ativo else "Nao informado", ln=True)
         
-        pdf.cell(60, 6, "Salário mínimo vigente:", 0, 0)
-        pdf.cell(0, 6, f"R$ {resultados['salario_minimo']:,.2f}", 0, 1)
-        
-        pdf.cell(60, 6, "Valor original do benefício:", 0, 0)
-        pdf.cell(0, 6, f"R$ {resultados['valor_beneficio']:,.2f}", 0, 1)
-        
-        pdf.cell(60, 6, "Valor acumulável:", 0, 0)
-        pdf.cell(0, 6, f"R$ {resultados['total_recebido']:,.2f}", 0, 1)
-        
-        pdf.cell(60, 6, "Percentual recebido:", 0, 0)
-        pdf.cell(0, 6, f"{resultados['percentual_recebido']:.2f}%", 0, 1)
-        
-        pdf.ln(8)
-        
-        # Detalhamento por faixas - TABELA MELHORADA
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, "DETALHAMENTO POR FAIXAS", 0, 1)
-        
-        # Cabeçalho da tabela com fundo cinza
-        pdf.set_fill_color(200, 200, 200)
-        pdf.set_font("Arial", "B", 9)
-        pdf.cell(50, 8, "FAIXA", 1, 0, 'C', 1)
-        pdf.cell(45, 8, "VALOR DA FAIXA (R$)", 1, 0, 'C', 1)
-        pdf.cell(30, 8, "PERCENTUAL", 1, 0, 'C', 1)
-        pdf.cell(45, 8, "VALOR RECEBIDO (R$)", 1, 1, 'C', 1)
-        
-        # Dados da tabela
-        pdf.set_font("Arial", "", 9)
-        for _, row in resultados['detalhes_df'].iterrows():
-            # Usar unidecode para garantir compatibilidade de caracteres
-            faixa_texto = unidecode(str(row['Faixa']))
-            pdf.cell(50, 6, faixa_texto, 1, 0)
-            pdf.cell(45, 6, f"R$ {row['Valor da Faixa (R$)']:,.2f}", 1, 0, 'R')
-            pdf.cell(30, 6, f"{row['Percentual Aplicado']:.0%}", 1, 0, 'C')
-            pdf.cell(45, 6, f"R$ {row['Valor Recebido (R$)']:,.2f}", 1, 1, 'R')
-        
-        # Linha de totais
-        pdf.set_font("Arial", "B", 9)
-        pdf.cell(125, 6, "TOTAL:", 1, 0, 'R')
-        pdf.cell(45, 6, f"R$ {resultados['total_recebido']:,.2f}", 1, 1, 'R')
+        pdf.cell(40, 6, "Polo Passivo:", 0, 0)
+        pdf.cell(0, 6, polo_passivo if polo_passivo else "Nao informado", ln=True)
         
         pdf.ln(10)
         
-        # Observações
+        # Dados do cálculo
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(0, 8, "RESULTADO DO CALCULO", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        pdf.cell(60, 6, "Data do beneficio:", 0, 0)
+        pdf.cell(0, 6, resultados['data_beneficio'].strftime("%d/%m/%Y"), ln=True)
+        
+        pdf.cell(60, 6, "Salario minimo vigente:", 0, 0)
+        pdf.cell(0, 6, formatar_moeda_br(resultados['salario_minimo']), ln=True)
+        
+        pdf.cell(60, 6, "Valor original do beneficio:", 0, 0)
+        pdf.cell(0, 6, formatar_moeda_br(resultados['valor_beneficio']), ln=True)
+        
+        pdf.cell(60, 6, "Valor acumulavel:", 0, 0)
+        pdf.cell(0, 6, formatar_moeda_br(resultados['total_recebido']), ln=True)
+        
+        pdf.cell(60, 6, "Percentual recebido:", 0, 0)
+        pdf.cell(0, 6, f"{resultados['percentual_recebido']:.2f}%", ln=True)
+        
+        pdf.ln(8)
+        
+        # Detalhamento por faixas
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(0, 8, "DETALHAMENTO POR FAIXAS", ln=True)
+        pdf.set_font("Arial", "", 9)
+        
+        # Cabeçalho da tabela
+        pdf.cell(50, 6, "Faixa", 1, 0, 'C')
+        pdf.cell(45, 6, "Valor da Faixa (R$)", 1, 0, 'C')
+        pdf.cell(35, 6, "Percentual", 1, 0, 'C')
+        pdf.cell(45, 6, "Valor Recebido (R$)", 1, 1, 'C')
+        
+        # Dados da tabela com formatação brasileira
+        for _, row in resultados['detalhes_df'].iterrows():
+            pdf.cell(50, 6, str(row['Faixa']), 1, 0)
+            pdf.cell(45, 6, formatar_moeda_br(row['Valor da Faixa (R$)']), 1, 0, 'R')
+            pdf.cell(35, 6, f"{row['Percentual Aplicado']:.0%}", 1, 0, 'C')
+            pdf.cell(45, 6, formatar_moeda_br(row['Valor Recebido (R$)']), 1, 1, 'R')
+        
+        pdf.ln(10)
+        
+        # Observações - preservando caracteres especiais
         if observacoes and observacoes.strip():
             pdf.set_font("Arial", "B", 10)
-            pdf.cell(0, 8, "OBSERVAÇÕES:", 0, 1)
+            pdf.cell(0, 8, "OBSERVACOES:", ln=True)
             pdf.set_font("Arial", "I", 9)
-            # Usar unidecode nas observações também
-            observacoes_ascii = unidecode(observacoes.strip())
-            pdf.multi_cell(0, 5, observacoes_ascii)
+            
+            # Processar observações para preservar caracteres especiais
+            obs_texto = observacoes.strip()
+            # Substituir apenas caracteres problemáticos, manter §, º, etc.
+            obs_texto = obs_texto.replace('à', 'a').replace('á', 'a').replace('â', 'a').replace('ã', 'a')
+            obs_texto = obs_texto.replace('è', 'e').replace('é', 'e').replace('ê', 'e')
+            obs_texto = obs_texto.replace('ì', 'i').replace('í', 'i').replace('î', 'i')
+            obs_texto = obs_texto.replace('ò', 'o').replace('ó', 'o').replace('ô', 'o').replace('õ', 'o')
+            obs_texto = obs_texto.replace('ù', 'u').replace('ú', 'u').replace('û', 'u')
+            obs_texto = obs_texto.replace('ç', 'c')
+            obs_texto = obs_texto.replace('À', 'A').replace('Á', 'A').replace('Â', 'A').replace('Ã', 'A')
+            obs_texto = obs_texto.replace('È', 'E').replace('É', 'E').replace('Ê', 'E')
+            obs_texto = obs_texto.replace('Ì', 'I').replace('Í', 'I').replace('Î', 'I')
+            obs_texto = obs_texto.replace('Ò', 'O').replace('Ó', 'O').replace('Ô', 'O').replace('Õ', 'O')
+            obs_texto = obs_texto.replace('Ù', 'U').replace('Ú', 'U').replace('Û', 'U')
+            obs_texto = obs_texto.replace('Ç', 'C')
+            
+            pdf.multi_cell(0, 6, obs_texto)
             pdf.ln(5)
         
         # Rodapé com assinatura eletrônica
         pdf.set_font("Arial", "I", 8)
-        pdf.cell(0, 6, f"Documento datado e assinado eletronicamente em {datetime.now().strftime('%d/%m/%Y as %H:%M')}.", 0, 1, 'C')
+        pdf.cell(0, 6, f"Documento datado e assinado eletronicamente em {datetime.now().strftime('%d/%m/%Y as %H:%M')}.", ln=True, align='C')
         
         # Gerar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -326,21 +337,24 @@ def main():
             st.session_state.detalhes_df = detalhes_df
             st.session_state.data_beneficio = data_beneficio
             
-            # Mostrar resultados
-            st.success(f"**Salário mínimo vigente:** R$ {salario_minimo:,.2f}")
+            # Mostrar resultados com formatação brasileira
+            st.success(f"**Salário mínimo vigente:** {formatar_moeda_br(salario_minimo)}")
             
             cols = st.columns(3)
-            cols[0].metric("Valor Original", f"R$ {valor_beneficio:,.2f}")
-            cols[1].metric("Valor Acumulável", f"R$ {total_recebido:,.2f}")
+            cols[0].metric("Valor Original", formatar_moeda_br(valor_beneficio))
+            cols[1].metric("Valor Acumulável", formatar_moeda_br(total_recebido))
             cols[2].metric("Percentual Recebido", f"{percentual_recebido:.2f}%")
             
             st.subheader("Detalhamento por Faixas")
+            
+            # Formatar DataFrame para exibição com padrão brasileiro
+            detalhes_df_formatado = detalhes_df.copy()
+            detalhes_df_formatado["Valor da Faixa (R$)"] = detalhes_df_formatado["Valor da Faixa (R$)"].apply(formatar_moeda_br)
+            detalhes_df_formatado["Valor Recebido (R$)"] = detalhes_df_formatado["Valor Recebido (R$)"].apply(formatar_moeda_br)
+            detalhes_df_formatado["Percentual Aplicado"] = detalhes_df_formatado["Percentual Aplicado"].apply(lambda x: f"{x:.0%}")
+            
             st.dataframe(
-                detalhes_df.style.format({
-                    "Valor da Faixa (R$)": "R$ {:,.2f}",
-                    "Valor Recebido (R$)": "R$ {:,.2f}",
-                    "Percentual Aplicado": "{:.0%}"
-                }),
+                detalhes_df_formatado,
                 use_container_width=True
             )
             
@@ -368,7 +382,7 @@ def main():
             value=st.session_state.get('observacoes', ''),
             key='observacoes_input',
             height=100,
-            placeholder="Digite aqui suas observações sobre o cálculo realizado..."
+            placeholder="Digite aqui suas observações sobre o cálculo realizado... (caracteres como §, º, etc. serão preservados)"
         )
         
         if st.button("Salvar Observações"):
@@ -384,50 +398,43 @@ def main():
         st.markdown("---")
         st.subheader("📄 Gerar Relatório PDF")
         
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.info("O PDF incluirá todas as informações do processo, resultado do cálculo, tabela detalhada e observações.")
-        
-        with col2:
-            if st.button("🖨️ Gerar PDF", type="primary", use_container_width=True):
-                if not st.session_state.get('numero_processo'):
-                    st.error("Por favor, preencha as informações do processo antes de gerar o PDF.")
-                else:
-                    with st.spinner("Gerando PDF..."):
-                        # Prepara os dados para o PDF
-                        resultados_pdf = {
-                            'data_beneficio': st.session_state.data_beneficio,
-                            'salario_minimo': st.session_state.salario_minimo,
-                            'valor_beneficio': st.session_state.valor_beneficio,
-                            'total_recebido': st.session_state.total_recebido,
-                            'percentual_recebido': st.session_state.percentual_recebido,
-                            'detalhes_df': st.session_state.detalhes_df
-                        }
+        if st.button("🖨️ Gerar PDF", type="primary"):
+            if not st.session_state.get('numero_processo'):
+                st.error("Por favor, preencha as informações do processo antes de gerar o PDF.")
+            else:
+                with st.spinner("Gerando PDF..."):
+                    # Prepara os dados para o PDF
+                    resultados_pdf = {
+                        'data_beneficio': st.session_state.data_beneficio,
+                        'salario_minimo': st.session_state.salario_minimo,
+                        'valor_beneficio': st.session_state.valor_beneficio,
+                        'total_recebido': st.session_state.total_recebido,
+                        'percentual_recebido': st.session_state.percentual_recebido,
+                        'detalhes_df': st.session_state.detalhes_df
+                    }
+                    
+                    pdf_data = gerar_pdf_acumulacao(
+                        resultados_pdf,
+                        st.session_state.numero_processo,
+                        st.session_state.polo_ativo,
+                        st.session_state.polo_passivo,
+                        st.session_state.get('observacoes', '')
+                    )
+                    
+                    if pdf_data:
+                        # Limpar caracteres especiais do nome do arquivo
+                        nome_processo_limpo = st.session_state.numero_processo.replace(' ', '_')
+                        nome_arquivo = f"acumulacao_beneficios_{nome_processo_limpo}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
                         
-                        pdf_data = gerar_pdf_acumulacao(
-                            resultados_pdf,
-                            st.session_state.numero_processo,
-                            st.session_state.polo_ativo,
-                            st.session_state.polo_passivo,
-                            st.session_state.get('observacoes', '')
+                        st.download_button(
+                            "⬇️ Baixar PDF",
+                            pdf_data,
+                            file_name=nome_arquivo,
+                            mime="application/pdf",
+                            help="Clique para baixar o relatório completo em PDF"
                         )
                         
-                        if pdf_data:
-                            # Limpar caracteres especiais do nome do arquivo
-                            nome_processo_limpo = unidecode(st.session_state.numero_processo).replace(' ', '_')
-                            nome_arquivo = f"acumulacao_{nome_processo_limpo}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                            
-                            st.download_button(
-                                "⬇️ Baixar PDF Gerado",
-                                pdf_data,
-                                file_name=nome_arquivo,
-                                mime="application/pdf",
-                                help="Clique para baixar o relatório completo em PDF",
-                                use_container_width=True
-                            )
-                            
-                            st.success("✅ PDF gerado com sucesso!")
+                        st.success("PDF gerado com sucesso!")
         
         # Assinatura eletrônica
         st.markdown("""
