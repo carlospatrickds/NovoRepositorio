@@ -428,7 +428,7 @@ def main():
         st.markdown("""
         ## Emenda Constitucional 103/2019
         
-        A Emenda Constitucional 103, de 13 de novembro de 2019, introduziu mudanças significativas no contexto do recebimento acumulado de benefícios previdenciários, regras de aplicações imediatas e de observância obrigatória pelo Instituto de Previdência de Angra dos Reis.
+        A Emenda Constitucional 103, de 13 de novembro de 2019, introduziu mudanças significativas no contexto do recebimento acumulado de benefícios previdenciários, regras de aplicações imediatas.
         
         ### Artigo 24 da Emenda Constitucional nº 103/2019:
         
@@ -436,7 +436,7 @@ def main():
         """)
         
         st.markdown("""
-        ## Lei Complementar Municipal 014/2021
+        # ## Lei Complementar Municipal 014/2021
         
         #No Âmbito do Município de Angra dos Reis a Lei Complementar 014, de 21 de dezembro de 2021, replicou em seu Artigo 32 a norma Constitucional, trazendo em seu § 1º, incisos I, II e III, as hipóteses permitidas de acumulação de benefícios previdenciários, além de estabelecer no § 2º a forma de apuração dos benefícios menos vantajosos.
         #""")
