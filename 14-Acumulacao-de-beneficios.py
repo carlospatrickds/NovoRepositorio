@@ -495,6 +495,7 @@ def main():
         - Emenda Constitucional nº 103/2019 - https://www.planalto.gov.br/ccivil_03/constituicao/emendas/emc/emc103.htm
         - Portaria MTPS nº 1.467/2022 - https://www.gov.br/previdencia/pt-br/assuntos/rpps/destaques/portaria-mtp-no-1-467-de-02-junho-de-2022
         """)
+        - https://www.angraprev.rj.gov.br/acumulo-de-beneficios/
 
 if __name__ == "__main__":
     # Inicializa variáveis de sessão se não existirem
