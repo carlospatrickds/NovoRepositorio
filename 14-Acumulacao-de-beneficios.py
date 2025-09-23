@@ -435,12 +435,7 @@ def main():
         **Art. 24.** É vedada a acumulação de mais de uma pensão por morte deixada por cônjuge ou companheiro, no âmbito do mesmo regime de previdência social, ressalvadas as pensões do mesmo instituidor, decorrentes do exercício de cargos acumuláveis na forma do art. 37 da Constituição Federal.
         """)
         
-        st.markdown("""
-        # ## Lei Complementar Municipal 014/2021
-        
-        #No Âmbito do Município de Angra dos Reis a Lei Complementar 014, de 21 de dezembro de 2021, replicou em seu Artigo 32 a norma Constitucional, trazendo em seu § 1º, incisos I, II e III, as hipóteses permitidas de acumulação de benefícios previdenciários, além de estabelecer no § 2º a forma de apuração dos benefícios menos vantajosos.
-        #""")
-        
+                
         st.markdown("""
         ## Portaria 1.467/2022 - Ministério do Trabalho e Previdência
         
