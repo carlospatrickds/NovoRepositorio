@@ -1,51 +1,43 @@
-# calculadora_prateleira.py
-
-"""
-Calculadora de capacidade de prateleira com cremalheira
-Base: madeira pinus maciça, suportes, distância entre trilhos
-"""
-
+# app_prateleira.py
+import streamlit as st
 import math
 
-# Dicionário de madeiras predefinidas (resistência à flexão em MPa)
+st.set_page_config(page_title="Calculadora de Prateleira", page_icon="📚")
+st.title("Calculadora de Capacidade de Prateleira com Cremalheira")
+
+# --- Entrada de dados ---
+largura = st.number_input("Comprimento da prateleira (cm)", value=80.0)
+profundidade = st.number_input("Profundidade da prateleira (cm)", value=20.0)
+espessura = st.number_input("Espessura da prateleira (cm)", value=2.0)
+material = st.selectbox("Material da prateleira", ["pinus", "mdf", "madeira_berço"])
+
+# Dicionário de resistências à flexão (Pa)
 materiais = {
-    "pinus": 55,
-    "mdf": 30,
-    "madeira_berço": 60
+    "pinus": 55e6,
+    "mdf": 30e6,
+    "madeira_berço": 60e6
 }
 
-def calcular_massa_maxima(largura_cm, profundidade_cm, espessura_cm, material="pinus"):
-    """
-    Calcula carga máxima aproximada (kg) de uma prateleira
-    largura_cm: comprimento da prateleira em cm
-    profundidade_cm: profundidade da prateleira em cm
-    espessura_cm: espessura da madeira em cm
-    material: chave do dicionário materiais
-    """
-    # Convertendo para metros
+def calcular_carga_maxima(largura_cm, profundidade_cm, espessura_cm, material):
+    # Conversão para metros
     L = largura_cm / 100
     b = profundidade_cm / 100
     h = espessura_cm / 100
 
-    # Propriedades do material
-    sigma = materiais.get(material, 55) * 1e6  # Pa
+    sigma = materiais.get(material, 55e6)
 
-    # Momento de inércia (viga retangular)
+    # Momento de inércia de uma viga retangular
     I = (b * h**3) / 12
 
-    # Carga distribuída máxima aproximada (kgf)
-    # Fórmula simplificada para viga bi-apoiada: q = (sigma * I * 6) / L^2
+    # Carga distribuída máxima aproximada (N)
     q_newton = (sigma * I * 6) / L**2
-    q_kg = q_newton / 9.81  # converter N para kgf
 
+    # Converter para kgf
+    q_kg = q_newton / 9.81
     return round(q_kg, 1)
 
-if __name__ == "__main__":
-    print("Calculadora de carga máxima de prateleira")
-    largura = float(input("Comprimento da prateleira (cm): "))
-    profundidade = float(input("Profundidade (cm): "))
-    espessura = float(input("Espessura (cm): "))
-    material = input("Material (pinus/mdf/madeira_berço): ").lower()
-
-    carga_max = calcular_massa_maxima(largura, profundidade, espessura, material)
-    print(f"Carga máxima aproximada: {carga_max} kg")
+# --- Botão de cálculo ---
+if st.button("Calcular"):
+    carga_max = calcular_carga_maxima(largura, profundidade, espessura, material)
+    st.success(f"Carga máxima aproximada da prateleira: {carga_max} kg")
+    st.info("Estimativa conservadora considerando apenas a madeira e dimensões da prateleira.")
