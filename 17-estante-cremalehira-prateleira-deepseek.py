@@ -43,6 +43,14 @@ st.markdown("""
         border-left: 5px solid #28a745;
         margin: 1rem 0;
     }
+    .capacity-box {
+        background-color: #e8f4f8;
+        padding: 1.5rem;
+        border-radius: 15px;
+        border: 3px solid #1f77b4;
+        text-align: center;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -127,9 +135,6 @@ with tab1:
         tipo_fixacao = st.selectbox("Tipo de fixação", list(CAPACIDADE_PARAFUSO.keys()))
     
     with col2:
-        st.subheader("Cálculos de Carga")
-        peso_por_prateleira = st.number_input("Peso estimado por prateleira (kg)", min_value=1.0, max_value=100.0, value=15.0, step=1.0)
-        
         # CÁLCULOS DE ENGENHARIA
         # 1. Capacidade da fixação
         capacidade_fixacao_total = num_trilhos * num_parafusos_por_trilho * CAPACIDADE_PARAFUSO[tipo_fixacao]
@@ -174,13 +179,41 @@ with tab1:
         
         capacidade_suporte_kg = capacidade_suporte(tamanho_suporte)
         
-        # 5. Carga total
-        carga_total = peso_por_prateleira * num_prateleiras
+        # 5. CÁLCULO DO PESO MÁXIMO POR PRATELEIRA
+        peso_maximo_prateleira = min(
+            capacidade_por_prateleira_fixacao,
+            capacidade_flexao, 
+            capacidade_suporte_kg
+        )
+        
+        st.subheader("🎯 Capacidade da Prateleira")
+        
+        st.markdown(f"""
+        <div class="capacity-box">
+        <h3 style="margin: 0; color: #1f77b4;">CAPACIDADE MÁXIMA POR PRATELEIRA</h3>
+        <h1 style="margin: 0.5rem 0; color: #1f77b4; font-size: 3rem;">{peso_maximo_prateleira:.1f} kg</h1>
+        <p style="margin: 0; font-size: 1.2rem;">por prateleira</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 6. Campo para usuário digitar o peso pretendido
+        st.subheader("📦 Sua Carga Pretendida")
+        peso_estimado = st.number_input(
+            "Peso que você pretende colocar por prateleira (kg)", 
+            min_value=0.0, 
+            max_value=float(peso_maximo_prateleira * 1.2),  # Limita a 20% acima do máximo
+            value=min(10.0, peso_maximo_prateleira * 0.7),  # Sugere 70% do máximo
+            step=1.0,
+            help=f"Digite o peso que você pretende colocar em cada prateleira. Máximo recomendado: {peso_maximo_prateleira:.1f} kg"
+        )
+        
+        # 7. Carga total
+        carga_total = peso_estimado * num_prateleiras
         
         # VERIFICAÇÕES DE VIABILIDADE
-        viabilidade_fixacao = peso_por_prateleira <= capacidade_por_prateleira_fixacao
-        viabilidade_flexao = peso_por_prateleira <= capacidade_flexao
-        viabilidade_suporte = peso_por_prateleira <= capacidade_suporte_kg
+        viabilidade_fixacao = peso_estimado <= capacidade_por_prateleira_fixacao
+        viabilidade_flexao = peso_estimado <= capacidade_flexao
+        viabilidade_suporte = peso_estimado <= capacidade_suporte_kg
         viabilidade_total = carga_total <= capacidade_fixacao_total
         
         st.markdown('<div class="result-box">', unsafe_allow_html=True)
@@ -192,6 +225,21 @@ with tab1:
         st.write(f"• Flexão da madeira: {capacidade_flexao:.1f} kg")
         st.write(f"• Capacidade do suporte: {capacidade_suporte_kg:.0f} kg")
         st.write(f"• Carga total estimada: {carga_total:.0f} kg")
+        
+        # Mostrar o fator de segurança
+        if peso_estimado > 0:
+            fator_seguranca = peso_maximo_prateleira / peso_estimado
+            st.write(f"• **Fator de segurança**: {fator_seguranca:.1f}x")
+            
+            # Indicador visual do fator de segurança
+            if fator_seguranca >= 2.0:
+                st.success("🔰 Excelente margem de segurança")
+            elif fator_seguranca >= 1.5:
+                st.info("✅ Margem de segurança adequada")
+            elif fator_seguranca >= 1.2:
+                st.warning("⚠️ Margem de segurança mínima")
+            else:
+                st.error("🚨 Margem de segurança insuficiente")
         
         st.markdown("</div>", unsafe_allow_html=True)
         
@@ -216,6 +264,15 @@ with tab1:
                 st.write(f"• Suporte inadequado: máximo {capacidade_suporte_kg} kg")
             if not viabilidade_total:
                 st.write(f"• Carga total excessiva: máximo {capacidade_fixacao_total} kg")
+            
+            st.write("\n**Sugestões de melhoria:**")
+            if not viabilidade_fixacao:
+                st.write("- Aumente número de parafusos ou use fixação mais resistente")
+            if not viabilidade_flexao:
+                st.write("- Use material mais resistente ou reduza a largura")
+            if not viabilidade_suporte:
+                st.write("- Use suportes menores ou mais robustos")
+            
             st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
@@ -243,9 +300,6 @@ with tab2:
         espessura_madeira = st.number_input("Espessura da madeira (mm)", min_value=10, max_value=30, value=18, step=2, key="espessura_fr")
     
     with col2:
-        st.subheader("Cálculos de Carga")
-        peso_estimado = st.number_input("Peso estimado na prateleira (kg)", min_value=1.0, max_value=50.0, value=10.0, step=1.0, key="peso_francesa")
-        
         # CÁLCULOS PARA MÃO FRANCESA
         # 1. Capacidade da fixação
         parafusos_por_mao = 2  # Cada mão francesa geralmente tem 2 parafusos
@@ -269,10 +323,38 @@ with tab2:
             espessura_madeira/1000
         )
         
+        # 4. CÁLCULO DO PESO MÁXIMO
+        peso_maximo_prateleira_fr = min(
+            capacidade_fixacao_fr,
+            capacidade_total_maos,
+            capacidade_flexao_fr
+        )
+        
+        st.subheader("🎯 Capacidade da Prateleira")
+        
+        st.markdown(f"""
+        <div class="capacity-box">
+        <h3 style="margin: 0; color: #1f77b4;">CAPACIDADE MÁXIMA DA PRATELEIRA</h3>
+        <h1 style="margin: 0.5rem 0; color: #1f77b4; font-size: 3rem;">{peso_maximo_prateleira_fr:.1f} kg</h1>
+        <p style="margin: 0; font-size: 1.2rem;">carga total suportada</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 5. Campo para usuário digitar o peso pretendido
+        st.subheader("📦 Sua Carga Pretendida")
+        peso_estimado_fr = st.number_input(
+            "Peso que você pretende colocar na prateleira (kg)", 
+            min_value=0.0, 
+            max_value=float(peso_maximo_prateleira_fr * 1.2),
+            value=min(8.0, peso_maximo_prateleira_fr * 0.7),
+            step=1.0,
+            key="peso_francesa"
+        )
+        
         # VERIFICAÇÕES
-        viabilidade_fixacao_fr = peso_estimado <= capacidade_fixacao_fr
-        viabilidade_maos = peso_estimado <= capacidade_total_maos
-        viabilidade_flexao_fr = peso_estimado <= capacidade_flexao_fr
+        viabilidade_fixacao_fr = peso_estimado_fr <= capacidade_fixacao_fr
+        viabilidade_maos = peso_estimado_fr <= capacidade_total_maos
+        viabilidade_flexao_fr = peso_estimado_fr <= capacidade_flexao_fr
         
         st.markdown('<div class="result-box">', unsafe_allow_html=True)
         st.subheader("📈 Resultados de Engenharia")
@@ -281,6 +363,11 @@ with tab2:
         st.write(f"• Fixação total: {capacidade_fixacao_fr:.0f} kg")
         st.write(f"• Mãos francesas: {capacidade_total_maos:.1f} kg")
         st.write(f"• Flexão da madeira: {capacidade_flexao_fr:.1f} kg")
+        
+        # Mostrar fator de segurança
+        if peso_estimado_fr > 0:
+            fator_seguranca_fr = peso_maximo_prateleira_fr / peso_estimado_fr
+            st.write(f"• **Fator de segurança**: {fator_seguranca_fr:.1f}x")
         
         st.markdown("</div>", unsafe_allow_html=True)
         
@@ -348,14 +435,30 @@ with tab3:
         Quanto maior a distância, maior o momento na fixação.
         """)
     
+    with st.expander("🎯 Como Interpretar a Capacidade Máxima"):
+        st.markdown("""
+        **A capacidade máxima é o MENOR valor entre:**
+        1. **Capacidade da fixação** - quanto os parafusos aguentam
+        2. **Resistência à flexão** - quanto a madeira aguenta sem empenar
+        3. **Capacidade do suporte** - quanto o suporte aguenta pela alavanca
+        
+        **Exemplo:** Se os valores são:
+        - Fixação: 20.8 kg
+        - Flexão: 30.8 kg  
+        - Suporte: 22 kg
+        
+        **→ Capacidade máxima = 20.8 kg** (o menor valor)
+        """)
+    
     st.subheader("🎯 Recomendações de Segurança")
     st.markdown("""
     1. **Sempre use nível** durante a instalação
-    2. **Teste a fixação** com carga gradual
+    2. **Teste a fixação** com carga gradual (comece com 50% do peso)
     3. **Verifique o tipo de parede** - evite drywall para cargas pesadas
     4. **Distribua o peso** uniformemente nas prateleiras
     5. **Faça manutenção periódica** da estrutura
     6. **Considere margem de segurança** de 20-30% além do cálculo
+    7. **Para livros**: 1 metro linear ≈ 15-20kg (dependendo do tipo)
     """)
 
 st.markdown("---")
