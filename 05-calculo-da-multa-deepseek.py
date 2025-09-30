@@ -8,7 +8,6 @@ from dateutil.relativedelta import relativedelta
 from fpdf import FPDF
 import tempfile
 from io import StringIO
-from unidecode import unidecode
 from workalendar.america import Brazil
 
 # Configuração inicial
@@ -401,7 +400,6 @@ if st.button("🔍 Carregar índices SELIC automaticamente"):
         indices_selic = calcular_correcao_selic(totais_mensais, data_atualizacao)
         if indices_selic:
             st.session_state.indices_selic = indices_selic
-            # Atualizar também cada índice no session_state, para os fields
             for mes, valor in indices_selic.items():
                 st.session_state[f"indice_{mes}"] = float(valor)
             st.success("Índices SELIC calculados com sucesso!")
@@ -460,40 +458,98 @@ if st.button("💰 Calcular Multa Corrigida"):
         "data_inicio_multa": data_inicio_multa
     }
 
-def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
+# Detalhamento visual bonito
+if "resultado_multa" in st.session_state:
+    res = st.session_state.resultado_multa
+    detalhamento = []
+    for mes in res["meses_ordenados"]:
+        bruto = res["totais_mensais"][mes]
+        indice = res["indices"].get(mes, 0.0)
+        corrigido = bruto * (1 + indice)
+        data_formatada = f"{mes[5:]}/{mes[:4]}"
+        detalhamento.append([data_formatada, moeda_br(bruto), f"{indice*100:.2f}%", moeda_br(corrigido)])
+    df_detalhamento = pd.DataFrame(detalhamento, columns=["Mês/Ano", "Base", "Índice", "Corrigido"])
+    st.markdown("### 🗒️ Detalhamento por mês:")
+    st.table(df_detalhamento)
+
+    st.markdown("---")
+    st.subheader("✅ Resultado Final")
+    st.markdown(f"- **Data de início da multa:** {res['data_inicio_multa'].strftime('%d/%m/%Y')}")
+    st.markdown(f"- **Total de dias em atraso:** {res['total_dias']}")
+    st.markdown(f"- **Multa sem correção:** {moeda_br(res['total_sem_correcao'])}")
+    st.markdown(f"- **Multa corrigida até {res['data_atualizacao'].strftime('%m/%Y')}:** {moeda_br(res['total_corrigido'])}")
+
+    # Formulário para PDF
+    with st.expander("📄 Gerar Relatório PDF", expanded=True):
+        col1, col2 = st.columns([2, 3])
+        with col1:
+            numero_processo = st.text_input("Nº do Processo", key="proc_input")
+            nome_autor = st.text_input("Autor", key="autor_input")
+            nome_reu = st.text_input("Réu", key="reu_input")
+            fonte_obs = st.selectbox("Fonte das observações", ["Arial", "DejaVu"], key="fonte_obs")
+            tam_obs = st.slider("Tamanho da fonte das observações", 8, 10, 8, key="tam_obs")
+        with col2:
+            observacao = st.text_area("Observações", height=206, key="obs_input")
+        if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
+            if not numero_processo:
+                st.error("Informe o número do processo")
+            else:
+                with st.spinner("Gerando documento..."):
+                    try:
+                        pdf_data = gerar_pdf(
+                            st.session_state.resultado_multa,
+                            numero_processo,
+                            nome_autor,
+                            nome_reu,
+                            observacao,
+                            fonte_obs,
+                            tam_obs
+                        )
+                        if pdf_data:
+                            st.download_button(
+                                "⬇️ Baixar PDF",
+                                pdf_data,
+                                file_name=f"relatorio_{numero_processo}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf"
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar PDF: {str(e)}")
+
+def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte_obs="Arial", tam_obs=8):
     try:
         FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
         pdf = FPDF()
         pdf.add_page()
         pdf.set_margins(left=10, top=10, right=10)
+        # Fonte principal
         try:
-            pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-            pdf.set_font("DejaVu", size=10)
+            if fonte_obs == "DejaVu":
+                pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
+            pdf.set_font("DejaVu" if fonte_obs == "DejaVu" else "Arial", size=10)
         except:
             pdf.set_font("Arial", size=10)
-            st.warning("Fonte DejaVu não encontrada, usando Arial como fallback.")
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, unidecode("Relatório de Multa Diária Corrigida"), ln=True, align="C")
+        pdf.cell(0, 8, "Relatório de Multa Diária Corrigida", ln=True, align="C")
         pdf.ln(5)
         pdf.set_font("Arial", "", 10)
-        pdf.cell(0, 6, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
-        pdf.cell(0, 6, unidecode(f"Autor: {nome_autor}"), ln=True)
-        pdf.cell(0, 6, unidecode(f"Réu: {nome_reu}"), ln=True)
+        pdf.cell(0, 6, f"Número do Processo: {numero_processo}", ln=True)
+        pdf.cell(0, 6, f"Autor: {nome_autor}", ln=True)
+        pdf.cell(0, 6, f"Réu: {nome_reu}", ln=True)
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Cálculo do Início da Multa:"), ln=True)
+        pdf.cell(0, 6, "Cálculo do Início da Multa:", ln=True)
         pdf.set_font("Arial", "", 10)
-        pdf.cell(90, 6, unidecode(f"Data do despacho/intimação:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['data_despacho'].strftime('%d/%m/%Y')}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Prazo para cumprimento:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['prazo_cumprimento']} {res['tipo_prazo'].lower()}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Fim do prazo:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['data_fim_prazo'].strftime('%d/%m/%Y')}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Início da multa:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['data_inicio_multa'].strftime('%d/%m/%Y')}"), ln=True)
+        pdf.cell(90, 6, "Data do despacho/intimação:", 0, 0)
+        pdf.cell(0, 6, res['data_despacho'].strftime('%d/%m/%Y'), ln=True)
+        pdf.cell(90, 6, "Prazo para cumprimento:", 0, 0)
+        pdf.cell(0, 6, f"{res['prazo_cumprimento']} {res['tipo_prazo'].lower()}", ln=True)
+        pdf.cell(90, 6, "Fim do prazo:", 0, 0)
+        pdf.cell(0, 6, res['data_fim_prazo'].strftime('%d/%m/%Y'), ln=True)
+        pdf.cell(90, 6, "Início da multa:", 0, 0)
+        pdf.cell(0, 6, res['data_inicio_multa'].strftime('%d/%m/%Y'), ln=True)
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Detalhamento das Faixas:"), ln=True)
+        pdf.cell(0, 6, "Detalhamento das Faixas:", ln=True)
         pdf.set_font("Arial", "", 10)
         for i, faixa in enumerate(st.session_state.faixas):
             if faixa.get("dias_uteis", False):
@@ -515,21 +571,21 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
                 f"Valor: {moeda_br(faixa['valor'])}/dia | "
                 f"Total: {moeda_br(dias_contabilizados * faixa['valor'])}"
             )
-            pdf.multi_cell(0, 6, unidecode(linha))
+            pdf.multi_cell(0, 6, linha)
             pdf.ln(2)
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Atualização da multa:"), ln=True)
+        pdf.cell(0, 6, "Atualização da multa:", ln=True)
         pdf.set_font("Arial", "", 10)
-        pdf.cell(90, 6, unidecode(f"Data de atualização:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['data_atualizacao'].strftime('%d/%m/%Y')}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Total de dias em atraso:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{res['total_dias']}"), ln=True)
-        pdf.cell(90, 6, unidecode(f"Multa sem correção:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_sem_correcao'])}"), ln=True)
+        pdf.cell(90, 6, "Data de atualização:", 0, 0)
+        pdf.cell(0, 6, res['data_atualizacao'].strftime('%d/%m/%Y'), ln=True)
+        pdf.cell(90, 6, "Total de dias em atraso:", 0, 0)
+        pdf.cell(0, 6, f"{res['total_dias']}", ln=True)
+        pdf.cell(90, 6, "Multa sem correção:", 0, 0)
+        pdf.cell(0, 6, moeda_br(res['total_sem_correcao']), ln=True)
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, unidecode("Correção mês a mês:"), ln=True)
+        pdf.cell(0, 6, "Correção mês a mês:", ln=True)
         pdf.set_font("Arial", "", 10)
         for mes in res["meses_ordenados"]:
             bruto = res["totais_mensais"][mes]
@@ -537,27 +593,30 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             corrigido = bruto * (1 + indice)
             data_formatada = f"{mes[5:]}/{mes[:4]}"
             linha = f"{data_formatada}: {moeda_br(bruto)} x {indice*100:.2f}% = {moeda_br(corrigido)}"
-            pdf.cell(0, 6, unidecode(linha), ln=True)
+            pdf.cell(0, 6, linha, ln=True)
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(90, 6, unidecode(f"Multa corrigida:"), 0, 0)
-        pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_corrigido'])}"), ln=True)
+        pdf.cell(90, 6, "Multa corrigida:", 0, 0)
+        pdf.cell(0, 6, moeda_br(res['total_corrigido']), ln=True)
         pdf.ln(8)
         if observacao and observacao.strip():
             pdf.ln(3)
-            pdf.set_font("Arial", "I", 8)
-            pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
+            # Fonte e tamanho customizados!
+            pdf.set_font(fonte_obs, "I", tam_obs)
+            pdf.multi_cell(0, 6, f"Observação: {observacao.strip()}")
         pdf.ln(8)
         pdf.set_font("Arial", "I", 8)
         pdf.cell(
             0, 6,
-            unidecode("Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil"),
+            "Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil",
             ln=True
         )
         pdf.ln(6)
+        # Rodapé alterado conforme solicitado
+        pdf.set_font("Arial", size=8)
         pdf.cell(
             0, 6,
-            unidecode("Este documento é assinado e datado eletronicamente."),
+            "Documento é assinado e datado eletronicamente.",
             ln=True
         )
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -569,52 +628,3 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
         import traceback
         st.error(traceback.format_exc())
         return None
-
-if "resultado_multa" in st.session_state:
-    res = st.session_state.resultado_multa
-    st.subheader("📋 Detalhamento por mês:")
-    for mes in res["meses_ordenados"]:
-        bruto = res["totais_mensais"][mes]
-        indice = res["indices"].get(mes, 0.0)
-        corrigido = bruto * (1 + indice)
-        data_formatada = f"{mes[5:]}/{mes[:4]}"
-        if indice == 0.0:
-            st.markdown(f"- **{data_formatada}**: {moeda_br(bruto)}")
-        else:
-            st.markdown(f"- **{data_formatada}**: base {moeda_br(bruto)} + índice {indice*100:.2f}% → corrigido: {moeda_br(corrigido)}")
-    st.markdown("---")
-    st.subheader("✅ Resultado Final")
-    st.markdown(f"- **Data de início da multa:** {res['data_inicio_multa'].strftime('%d/%m/%Y')}")
-    st.markdown(f"- **Total de dias em atraso:** {res['total_dias']}")
-    st.markdown(f"- **Multa sem correção:** {moeda_br(res['total_sem_correcao'])}")
-    st.markdown(f"- **Multa corrigida até {res['data_atualizacao'].strftime('%m/%Y')}:** {moeda_br(res['total_corrigido'])}")
-    with st.expander("📄 Gerar Relatório PDF", expanded=True):
-        col1, col2 = st.columns([2, 3])
-        with col1:
-            numero_processo = st.text_input("Nº do Processo", key="proc_input")
-            nome_autor = st.text_input("Autor", key="autor_input")
-            nome_reu = st.text_input("Réu", key="reu_input")
-        with col2:
-            observacao = st.text_area("Observações", height=206, key="obs_input")
-        if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
-            if not numero_processo:
-                st.error("Informe o número do processo")
-            else:
-                with st.spinner("Gerando documento..."):
-                    try:
-                        pdf_data = gerar_pdf(
-                            st.session_state.resultado_multa,
-                            numero_processo,
-                            nome_autor,
-                            nome_reu,
-                            observacao
-                        )
-                        if pdf_data:
-                            st.download_button(
-                                "⬇️ Baixar PDF",
-                                pdf_data,
-                                file_name=f"relatorio_{numero_processo}_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                mime="application/pdf"
-                            )
-                    except Exception as e:
-                        st.error(f"Erro ao gerar PDF: {str(e)}")
