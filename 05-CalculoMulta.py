@@ -476,7 +476,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "Prazo para cumprimento (dias)",
             min_value=1,
             max_value=365,
-            value=15,
+            value=10,
             step=1,
             help="Prazo em dias para cumprimento da obrigação"
         )
@@ -542,7 +542,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     )
 
     if st.session_state.modo_entrada == "Definir número de dias":
-        num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
+        num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=10, step=1, key="num_dias_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
         data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
         st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
@@ -553,7 +553,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         # widget onde o usuário escolhe a data final
         data_fim = st.date_input(
             "Fim da faixa",
-            value=data_inicio + timedelta(days=5),
+            value=data_inicio + timedelta(days=10),
             format="DD/MM/YYYY",
             key="data_fim_faixa"
         )
