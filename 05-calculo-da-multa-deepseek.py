@@ -54,7 +54,7 @@ with abas[1]:
 with abas[0]:
     st.title("📅 Cálculo de Multa Diária Corrigida por Faixa")
     st.markdown("""
-Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC.<br>\n
+Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC.<br>
 <b>Dias úteis</b>: Considera apenas dias de segunda a sexta-feira.<br>
 <b>Dias abatidos</b>: Dias que não devem ser contabilizados (ex: feriados e prazos suspensos).
 """, unsafe_allow_html=True)
@@ -320,10 +320,12 @@ def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
 if "faixas" not in st.session_state:
     st.session_state.faixas = []
 
-# ...código anterior...
+# Inicializar modo de entrada no session state se necessário
+if "modo_entrada" not in st.session_state:
+    st.session_state.modo_entrada = "Definir data final"
 
 # Interface de adição de faixas - COM NOVA OPÇÃO DE NÚMERO DE DIAS
-with st.form("nova_faixa", clear_on_submit=True):
+with st.form("nova_faixa", clear_on_submit=False):
     # Configura datas padrão usando a data de início da multa calculada
     if st.session_state.faixas:
         data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
@@ -333,19 +335,14 @@ with st.form("nova_faixa", clear_on_submit=True):
     
     data_fim_padrao = data_inicio_padrao + timedelta(days=5)
 
-    # Salva o modo de entrada no session_state para persistência
-    if "modo_entrada" not in st.session_state:
-        st.session_state.modo_entrada = "Definir data final"
-
     modo_entrada = st.radio(
         "Como deseja definir a faixa?",
         ["Definir data final", "Definir número de dias"],
         horizontal=True,
-        key="modo_entrada",  # <- chave para session_state
+        key="modo_entrada",  # chave para session_state
         help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias"
     )
 
-    # Campos do formulário
     col1, col2 = st.columns(2)
     with col1:
         data_inicio = st.date_input(
@@ -353,9 +350,8 @@ with st.form("nova_faixa", clear_on_submit=True):
             value=data_inicio_padrao,
             format="DD/MM/YYYY"
         )
-    
+
     with col2:
-        # Mostra o campo correto dependendo do modo
         if st.session_state.modo_entrada == "Definir data final":
             data_fim = st.date_input(
                 "Fim da faixa",
@@ -372,11 +368,51 @@ with st.form("nova_faixa", clear_on_submit=True):
                 step=1,
                 help="Número de dias para a faixa"
             )
-            # Calcula o data_fim com base no número de dias
-            data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
-            st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
+            # O tipo_dias só pode ser definido depois, por isso criaremos um placeholder aqui e corrigimos abaixo
+            data_fim = None
 
-    # ...restante do formulário...
+    valor_diario = st.number_input(
+        "Valor diário (R$)",
+        min_value=0.0,
+        step=1.0,
+        value=50.0
+    )
+    
+    tipo_dias = st.selectbox(
+        "Tipo de contagem",
+        ["Dias úteis", "Dias corridos"],
+        index=0
+    )
+    
+    dias_abatidos = st.number_input(
+        "Dias abatidos (prazo suspenso)",
+        min_value=0,
+        max_value=50,
+        value=0,
+        step=1
+    )
+
+    # Se modo é por número de dias, calcular data_fim automaticamente
+    if st.session_state.modo_entrada == "Definir número de dias" and num_dias is not None:
+        data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
+        st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
+
+    # Botão de submit
+    submitted = st.form_submit_button("➕ Adicionar faixa")
+
+    if submitted:
+        if data_inicio <= data_fim:
+            st.session_state.faixas.append({
+                "inicio": data_inicio,
+                "fim": data_fim,
+                "valor": valor_diario,
+                "dias_uteis": tipo_dias == "Dias úteis",
+                "dias_abatidos": dias_abatidos
+            })
+            st.success("Faixa adicionada!")
+            st.experimental_rerun()
+        else:
+            st.error("A data final deve ser igual ou posterior à data inicial!")
 
 # Lista faixas adicionadas
 if st.session_state.faixas:
@@ -426,7 +462,7 @@ if st.session_state.faixas:
         with col3:
             if st.button(f"🗑️ Excluir", key=f"excluir_{i}"):
                 remover_faixa(i)
-                st.rerun()
+                st.experimental_rerun()
 
 st.markdown("---")
 
