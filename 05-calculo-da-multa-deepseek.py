@@ -54,7 +54,7 @@ with abas[1]:
 with abas[0]:
     st.title("📅 Cálculo de Multa Diária Corrigida por Faixa")
     st.markdown("""
-Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC.<br>\n
+Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC.<br>
 <b>Dias úteis</b>: Considera apenas dias de segunda a sexta-feira.<br>
 <b>Dias abatidos</b>: Dias que não devem ser contabilizados (ex: feriados e prazos suspensos).
 """, unsafe_allow_html=True)
@@ -92,46 +92,32 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
 
     # Função para calcular data final do prazo e início da multa
     def calcular_inicio_multa(data_despacho, prazo_dias, dias_uteis=False):
-        """Calcula a data de início da multa com base no despacho e prazo"""
         cal = Brazil() if dias_uteis else None
-        
         if dias_uteis:
-            # Para dias úteis, conta apenas dias de trabalho
             data_fim_prazo = data_despacho
             dias_contados = 0
-            
             while dias_contados < prazo_dias:
                 data_fim_prazo += timedelta(days=1)
                 if cal.is_working_day(data_fim_prazo) and data_fim_prazo.weekday() < 5:
                     dias_contados += 1
         else:
-            # Para dias corridos, conta todos os dias
             data_fim_prazo = data_despacho + timedelta(days=prazo_dias)
-        
-        # A multa começa no dia seguinte ao término do prazo
         data_inicio_multa = data_fim_prazo + timedelta(days=1)
-        
         return data_fim_prazo, data_inicio_multa
 
-    # Cálculo automático das datas
     data_fim_prazo, data_inicio_multa = calcular_inicio_multa(
         data_despacho, 
         prazo_cumprimento, 
         tipo_prazo == "Dias úteis"
     )
 
-    # Exibir resultados do cálculo
     col_result1, col_result2 = st.columns(2)
-    
     with col_result1:
         st.info(f"**Fim do prazo:** {data_fim_prazo.strftime('%d/%m/%Y')}")
-    
     with col_result2:
         st.success(f"**Início da multa:** {data_inicio_multa.strftime('%d/%m/%Y')}")
-
     st.markdown("---")
 
-# Função para configurar locale brasileiro
 def set_brazilian_locale():
     try:
         locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -146,26 +132,21 @@ def set_brazilian_locale():
 br_locale_ok = set_brazilian_locale()
 
 def moeda_br(valor):
-    """Formata valor para moeda brasileira"""
     if br_locale_ok:
         return locale.currency(valor, grouping=True)
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# Função para obter taxas SELIC com tratamento robusto
 def get_selic_rates():
-    """Obtém taxas SELIC do repositório GitHub com tratamento robusto"""
     url = "https://raw.githubusercontent.com/carlospatrickds/vscode_python/master/selic.csv"
     try:
         response = requests.get(url)
         response.raise_for_status()
-        
         meses_pt_eng = {
             'jan': 'Jan', 'fev': 'Feb', 'mar': 'Mar', 'abr': 'Apr',
             'mai': 'May', 'jun': 'Jun', 'jul': 'Jul', 'ago': 'Aug',
             'set': 'Sep', 'out': 'Oct', 'nov': 'Nov', 'dez': 'Dec',
-            'mr': 'Mar', 'det': 'Dec'  # Tratamento para erros comuns
+            'mr': 'Mar', 'det': 'Dec'
         }
-        
         dados = []
         for linha in response.text.split('\n'):
             linha = linha.strip()
@@ -174,22 +155,13 @@ def get_selic_rates():
                 if len(partes) >= 2:
                     mes_ano = partes[0].strip().lower()
                     taxa = partes[1].strip()
-                    
-                    # Extrai mês (3 primeiras letras)
                     mes = mes_ano[:3]
-                    
-                    # Remove caracteres especiais do ano
                     ano = ''.join(c for c in mes_ano[3:] if c.isdigit())
-                    
-                    # Corrige anos com 2 dígitos (assume 2000+)
                     if len(ano) == 2:
                         ano = '20' + ano
                     elif len(ano) == 1:
                         ano = '200' + ano
-                    
-                    # Limpa a taxa (remove caracteres não numéricos)
                     taxa_limpa = ''.join(c for c in taxa.replace(',', '.') if c.isdigit() or c == '.')
-                    
                     if mes in meses_pt_eng and ano and taxa_limpa:
                         try:
                             mes_eng = meses_pt_eng[mes]
@@ -198,19 +170,14 @@ def get_selic_rates():
                             dados.append({'Data': data, 'Taxa': taxa_float})
                         except (ValueError, KeyError):
                             continue
-        
         if not dados:
             st.error("Nenhum dado válido encontrado no arquivo SELIC")
             return None
-            
-        # Cria DataFrame e converte datas
         df = pd.DataFrame(dados)
         df['Data'] = pd.to_datetime(df['Data'], format='%b/%Y', errors='coerce')
         df = df.dropna(subset=['Data', 'Taxa'])
         df = df.sort_values('Data')
-        
         return df[['Data', 'Taxa']]
-
     except Exception as e:
         st.error(f"Erro ao carregar dados SELIC: {str(e)}")
         if 'response' in locals():
@@ -218,139 +185,89 @@ def get_selic_rates():
         return None
 
 def calcular_correcao_selic(totais_mensais, data_atualizacao):
-    """Calcula correção pela SELIC"""
     selic_data = get_selic_rates()
     if selic_data is None:
         st.error("Dados SELIC não disponíveis para cálculo")
         return None
-
-    # Garante que data_atualizacao seja datetime
     if isinstance(data_atualizacao, date):
         data_atualizacao = datetime(data_atualizacao.year, data_atualizacao.month, data_atualizacao.day)
-
     indices_selic = {}
     meses_ordenados = sorted(totais_mensais.keys())
-
     for mes_str in meses_ordenados:
         ano, mes = map(int, mes_str.split('-'))
         data_mes = datetime(ano, mes, 1)
-
         fator_correcao = 1.0
         data_correcao = data_mes
-
         while data_correcao <= data_atualizacao:
-            # Filtra usando ano e mês diretamente
             mes_data = selic_data[
                 (selic_data['Data'].dt.year == data_correcao.year) & 
                 (selic_data['Data'].dt.month == data_correcao.month)
             ]
-            
             if not mes_data.empty:
                 taxa_mes = mes_data.iloc[0]['Taxa']
                 fator_correcao *= (1 + taxa_mes)
-            
-            # Avança para o próximo mês
             if data_correcao.month == 12:
                 data_correcao = datetime(data_correcao.year + 1, 1, 1)
             else:
                 data_correcao = datetime(data_correcao.year, data_correcao.month + 1, 1)
-
         indice_percentual = (fator_correcao - 1) * 100
         indices_selic[mes_str] = indice_percentual
-
     return indices_selic
 
 def distribuir_valores_por_mes(inicio, fim, valor_diario, dias_uteis=False, dias_abatidos=0):
-    """Distribui valores por mês considerando dias úteis e abatidos"""
     valores_mes = defaultdict(float)
     cal = Brazil() if dias_uteis else None
-    
     dia = inicio
     dias_totais = 0
-    
     while dia <= fim:
         if not dias_uteis or (cal.is_working_day(dia) and dia.weekday() < 5):
             chave = dia.strftime("%Y-%m")
             valores_mes[chave] += valor_diario
             dias_totais += 1
         dia += timedelta(days=1)
-    
-    # Aplica abatimento de dias (prazo suspenso)
     dias_totais = max(0, dias_totais - dias_abatidos)
-    
-    # Redistribui o valor considerando os dias abatidos
     if dias_abatidos > 0:
         fator = dias_totais / (dias_totais + dias_abatidos) if (dias_totais + dias_abatidos) > 0 else 0
         for mes in valores_mes:
             valores_mes[mes] *= fator
-    
     return valores_mes, dias_totais
 
-# Funções de manipulação de faixas
 def remover_faixa(idx):
-    """Remove faixa pelo índice"""
     if 0 <= idx < len(st.session_state.faixas):
         st.session_state.faixas.pop(idx)
 
-def adicionar_faixa(nova_faixa):
-    """Adiciona nova faixa"""
-    st.session_state.faixas.append(nova_faixa)
-
-# NOVA FUNÇÃO: Calcular data final baseada em número de dias
 def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
-    """Calcula a data final baseada no número de dias e tipo de contagem"""
     cal = Brazil() if dias_uteis else None
-    
     if dias_uteis:
-        # Para dias úteis, conta apenas dias de trabalho
         data_final = data_inicio
         dias_contados = 0
-        
         while dias_contados < num_dias:
             data_final += timedelta(days=1)
             if cal.is_working_day(data_final) and data_final.weekday() < 5:
                 dias_contados += 1
     else:
-        # Para dias corridos, conta todos os dias
         data_final = data_inicio + timedelta(days=num_dias - 1)
-    
     return data_final
 
-# Inicialização do session state
 if "faixas" not in st.session_state:
     st.session_state.faixas = []
+if "modo_entrada" not in st.session_state:
+    st.session_state.modo_entrada = "Definir data final"
 
-if "modo_entrada_faixa" not in st.session_state:
-    st.session_state.modo_entrada_faixa = "Definir data final"
+modo_entrada = st.radio(
+    "Como deseja definir a faixa?",
+    ["Definir data final", "Definir número de dias"],
+    horizontal=True,
+    key="modo_entrada",
+    help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias"
+)
 
-if "num_dias_faixa" not in st.session_state:
-    st.session_state.num_dias_faixa = 5
-
-# Interface de adição de faixas - COM NOVA OPÇÃO DE NÚMERO DE DIAS
-with st.form("nova_faixa", clear_on_submit=True):
-    # Configura datas padrão usando a data de início da multa calculada
+with st.form("nova_faixa", clear_on_submit=False):
     if st.session_state.faixas:
         data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
     else:
-        # Usa a data de início da multa calculada como padrão para a primeira faixa
         data_inicio_padrao = data_inicio_multa
-    
     data_fim_padrao = data_inicio_padrao + timedelta(days=5)
-
-    # NOVA OPÇÃO: Modo de entrada (data final ou número de dias)
-    modo_entrada = st.radio(
-        "Como deseja definir a faixa?",
-        ["Definir data final", "Definir número de dias"],
-        horizontal=True,
-        index=0 if st.session_state.modo_entrada_faixa == "Definir data final" else 1,
-        help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias",
-        key="modo_entrada_radio"
-    )
-    
-    # Atualiza o session state com a escolha atual
-    st.session_state.modo_entrada_faixa = modo_entrada
-
-    # Campos do formulário
     col1, col2 = st.columns(2)
     with col1:
         data_inicio = st.date_input(
@@ -358,40 +275,36 @@ with st.form("nova_faixa", clear_on_submit=True):
             value=data_inicio_padrao,
             format="DD/MM/YYYY"
         )
-    
     with col2:
-        if st.session_state.modo_entrada_faixa == "Definir data final":
+        if st.session_state.modo_entrada == "Definir data final":
             data_fim = st.date_input(
                 "Fim da faixa",
                 value=data_fim_padrao,
                 format="DD/MM/YYYY"
             )
+            num_dias = None
         else:
             num_dias = st.number_input(
                 "Número de dias",
                 min_value=1,
                 max_value=365,
-                value=st.session_state.num_dias_faixa,
+                value=5,
                 step=1,
-                help="Número de dias para a faixa",
-                key="num_dias_input"
+                help="Número de dias para a faixa"
             )
-            # Atualiza o session state com o número de dias
-            st.session_state.num_dias_faixa = num_dias
-    
-    valor_diario = st.number_input(
-        "Valor diário (R$)",
-        min_value=0.0,
-        step=1.0,
-        value=50.0
-    )
-    
-    tipo_dias = st.selectbox(
-        "Tipo de contagem",
-        ["Dias úteis", "Dias corridos"],
-        index=0
-    )
-    
+            tipo_dias = st.selectbox(
+                "Tipo de contagem",
+                ["Dias úteis", "Dias corridos"],
+                index=0
+            )
+            data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
+            st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
+    if st.session_state.modo_entrada == "Definir data final":
+        tipo_dias = st.selectbox(
+            "Tipo de contagem",
+            ["Dias úteis", "Dias corridos"],
+            index=0
+        )
     dias_abatidos = st.number_input(
         "Dias abatidos (prazo suspenso)",
         min_value=0,
@@ -399,20 +312,14 @@ with st.form("nova_faixa", clear_on_submit=True):
         value=0,
         step=1
     )
-
-    # Se modo é por número de dias, calcular data_fim automaticamente
-    if st.session_state.modo_entrada_faixa == "Definir número de dias":
-        data_fim = calcular_data_final(data_inicio, st.session_state.num_dias_faixa, tipo_dias == "Dias úteis")
-        st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
-
-    # Botão de submit
+    valor_diario = st.number_input(
+        "Valor diário (R$)",
+        min_value=0.0,
+        step=1.0,
+        value=50.0
+    )
     submitted = st.form_submit_button("➕ Adicionar faixa")
-
     if submitted:
-        if st.session_state.modo_entrada_faixa == "Definir número de dias":
-            # Recalcula data_fim para garantir que está atualizada
-            data_fim = calcular_data_final(data_inicio, st.session_state.num_dias_faixa, tipo_dias == "Dias úteis")
-        
         if data_inicio <= data_fim:
             st.session_state.faixas.append({
                 "inicio": data_inicio,
@@ -421,17 +328,16 @@ with st.form("nova_faixa", clear_on_submit=True):
                 "dias_uteis": tipo_dias == "Dias úteis",
                 "dias_abatidos": dias_abatidos
             })
-            st.rerun()
+            st.success("Faixa adicionada!")
+            # st.experimental_rerun()  # REMOVIDO por estabilidade
         else:
             st.error("A data final deve ser igual ou posterior à data inicial!")
 
-# Lista faixas adicionadas
 if st.session_state.faixas:
     st.markdown("### ✅ Faixas adicionadas:")
     for i, f in enumerate(st.session_state.faixas):
         col1, col2, col3 = st.columns([4, 3, 1])
         with col1:
-            # CALCULA DIAS CORRETAMENTE PARA EXIBIÇÃO
             if f.get("dias_uteis", False):
                 cal = Brazil()
                 dia = f["inicio"]
@@ -443,21 +349,17 @@ if st.session_state.faixas:
                 dias_contabilizados = max(0, dias_contabilizados - f.get("dias_abatidos", 0))
             else:
                 dias_contabilizados = (f["fim"] - f["inicio"]).days + 1 - f.get("dias_abatidos", 0)
-            
             st.markdown(
                 f"- Faixa {i+1}: {f['inicio'].strftime('%d/%m/%Y')} a {f['fim'].strftime('%d/%m/%Y')} – {moeda_br(f['valor'])}/dia"
             )
             st.caption(f"Tipo: {'Dias úteis' if f.get('dias_uteis', False) else 'Dias corridos'} | Dias: {dias_contabilizados} | Dias abatidos: {f.get('dias_abatidos', 0)}")
-        
         with col2:
-            # Permite edição dos parâmetros
             novo_tipo = st.selectbox(
                 "Alterar tipo de contagem",
                 ["Dias corridos", "Dias úteis"],
                 index=1 if f.get("dias_uteis", False) else 0,
                 key=f"edit_tipo_{i}"
             )
-            
             novos_dias_abatidos = st.number_input(
                 "Alterar dias abatidos",
                 min_value=0,
@@ -465,29 +367,22 @@ if st.session_state.faixas:
                 value=f.get("dias_abatidos", 0),
                 key=f"edit_dias_{i}"
             )
-            
-            # Atualiza a faixa com as novas informações
             st.session_state.faixas[i]["dias_uteis"] = novo_tipo == "Dias úteis"
             st.session_state.faixas[i]["dias_abatidos"] = novos_dias_abatidos
-        
         with col3:
             if st.button(f"🗑️ Excluir", key=f"excluir_{i}"):
                 remover_faixa(i)
-                st.rerun()
-
+                # st.experimental_rerun()  # REMOVIDO por estabilidade
 st.markdown("---")
 
-# Data de atualização
 st.subheader("📅 Data de atualização dos índices")
 data_atualizacao = st.date_input("Data de atualização", value=date.today(), format="DD/MM/YYYY")
 
-# Link para tabela CJF
 st.markdown("### 🔗 Acesso rápido ao site do Banco Central")
 if st.button("Abrir site do BC"):
     js = "window.open('https://www.bcb.gov.br/estabilidadefinanceira/selicfatoresacumulados')"
     st.components.v1.html(f"<script>{js}</script>", height=0, width=0)
 
-# Cálculo dos totais mensais
 totais_mensais = defaultdict(float)
 total_dias = 0
 for faixa in st.session_state.faixas:
@@ -502,7 +397,6 @@ for faixa in st.session_state.faixas:
         totais_mensais[mes] += valor
     total_dias += dias_faixa
 
-# Seção de índices
 st.subheader("📊 Índices por mês (%)")
 if st.button("🔍 Carregar índices SELIC automaticamente"):
     with st.spinner("Calculando correção SELIC..."):
@@ -534,18 +428,15 @@ for mes in meses_ordenados:
         )
         indices[mes] = indice / 100
 
-# Cálculo final
 if st.button("💰 Calcular Multa Corrigida"):
     total_sem_correcao = sum(totais_mensais.values())
     total_corrigido = 0.0
-
     for mes in meses_ordenados:
         bruto = totais_mensais[mes]
         indice = indices.get(mes, 0.0)
         fator = 1 + indice
         corrigido = bruto * fator
         total_corrigido += corrigido
-
     st.session_state.resultado_multa = {
         "total_dias": total_dias,
         "total_sem_correcao": total_sem_correcao,
@@ -566,31 +457,21 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
         FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
         pdf = FPDF()
         pdf.add_page()
-        
-        # Configurar margens menores
         pdf.set_margins(left=10, top=10, right=10)
-        
-        # Configurar a fonte (com fallback)
         try:
             pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
             pdf.set_font("DejaVu", size=10)
         except:
             pdf.set_font("Arial", size=10)
             st.warning("Fonte DejaVu não encontrada, usando Arial como fallback.")
-        
-        # Título
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 8, unidecode("Relatório de Multa Diária Corrigida"), ln=True, align="C")
         pdf.ln(5)
-
-        # Dados do processo
         pdf.set_font("Arial", "", 10)
         pdf.cell(0, 6, unidecode(f"Número do Processo: {numero_processo}"), ln=True)
         pdf.cell(0, 6, unidecode(f"Autor: {nome_autor}"), ln=True)
         pdf.cell(0, 6, unidecode(f"Réu: {nome_reu}"), ln=True)
         pdf.ln(5)
-
-        # NOVA SEÇÃO: Informações sobre o início da multa
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, unidecode("Cálculo do Início da Multa:"), ln=True)
         pdf.set_font("Arial", "", 10)
@@ -603,20 +484,16 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
         pdf.cell(90, 6, unidecode(f"Início da multa:"), 0, 0)
         pdf.cell(0, 6, unidecode(f"{res['data_inicio_multa'].strftime('%d/%m/%Y')}"), ln=True)
         pdf.ln(5)
-
-        # Detalhamento das Faixas
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, unidecode("Detalhamento das Faixas:"), ln=True)
         pdf.set_font("Arial", "", 10)
-
         for i, faixa in enumerate(st.session_state.faixas):
-            # CALCULA DIAS CORRETAMENTE BASEADO NO TIPO SELECIONADO
             if faixa.get("dias_uteis", False):
                 cal = Brazil()
                 dia = faixa["inicio"]
                 dias_contabilizados = 0
                 while dia <= faixa["fim"]:
-                    if cal.is_working_day(dia) and dia.weekday() < 5:  # Dias úteis
+                    if cal.is_working_day(dia) and dia.weekday() < 5:
                         dias_contabilizados += 1
                     dia += timedelta(days=1)
                 dias_contabilizados = max(0, dias_contabilizados - faixa.get("dias_abatidos", 0))
@@ -624,7 +501,6 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             else:
                 dias_contabilizados = (faixa["fim"] - faixa["inicio"]).days + 1 - faixa.get("dias_abatidos", 0)
                 tipo_dias = "dias corridos"
-            
             linha = (
                 f"Faixa {i+1}: {faixa['inicio'].strftime('%d/%m/%Y')} a {faixa['fim'].strftime('%d/%m/%Y')} | "
                 f"{dias_contabilizados} {tipo_dias} | "
@@ -633,10 +509,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             )
             pdf.multi_cell(0, 6, unidecode(linha))
             pdf.ln(2)
-
         pdf.ln(5)
-
-        # Atualização da multa
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, unidecode("Atualização da multa:"), ln=True)
         pdf.set_font("Arial", "", 10)
@@ -646,13 +519,10 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
         pdf.cell(0, 6, unidecode(f"{res['total_dias']}"), ln=True)
         pdf.cell(90, 6, unidecode(f"Multa sem correção:"), 0, 0)
         pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_sem_correcao'])}"), ln=True)
-
-        # Detalhamento mensal
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, unidecode("Correção mês a mês:"), ln=True)
         pdf.set_font("Arial", "", 10)
-
         for mes in res["meses_ordenados"]:
             bruto = res["totais_mensais"][mes]
             indice = res["indices"].get(mes, 0.0)
@@ -660,22 +530,15 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             data_formatada = f"{mes[5:]}/{mes[:4]}"
             linha = f"{data_formatada}: {moeda_br(bruto)} x {indice*100:.2f}% = {moeda_br(corrigido)}"
             pdf.cell(0, 6, unidecode(linha), ln=True)
-
-        # Multa corrigida final
         pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
         pdf.cell(90, 6, unidecode(f"Multa corrigida:"), 0, 0)
         pdf.cell(0, 6, unidecode(f"{moeda_br(res['total_corrigido'])}"), ln=True)
-
         pdf.ln(8)
-
-        # Observação
         if observacao and observacao.strip():
             pdf.ln(3)
             pdf.set_font("Arial", "I", 8)
             pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
-        
-        # Rodapé
         pdf.ln(8)
         pdf.set_font("Arial", "I", 8)
         pdf.cell(
@@ -683,29 +546,24 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             unidecode("Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil"),
             ln=True
         )
-
         pdf.ln(6)
         pdf.cell(
             0, 6,
             unidecode("Este documento é assinado e datado eletronicamente."),
             ln=True
         )
-        # Gerar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             pdf.output(tmp_file.name)
             tmp_file.seek(0)
             return tmp_file.read()
-
     except Exception as e:
         st.error(f"Erro ao gerar PDF: {str(e)}")
         import traceback
         st.error(traceback.format_exc())
         return None
 
-# Exibição dos resultados e formulário PDF
 if "resultado_multa" in st.session_state:
     res = st.session_state.resultado_multa
-    
     st.subheader("📋 Detalhamento por mês:")
     for mes in res["meses_ordenados"]:
         bruto = res["totais_mensais"][mes]
@@ -716,26 +574,20 @@ if "resultado_multa" in st.session_state:
             st.markdown(f"- **{data_formatada}**: {moeda_br(bruto)}")
         else:
             st.markdown(f"- **{data_formatada}**: base {moeda_br(bruto)} + índice {indice*100:.2f}% → corrigido: {moeda_br(corrigido)}")
-
     st.markdown("---")
     st.subheader("✅ Resultado Final")
     st.markdown(f"- **Data de início da multa:** {res['data_inicio_multa'].strftime('%d/%m/%Y')}")
     st.markdown(f"- **Total de dias em atraso:** {res['total_dias']}")
     st.markdown(f"- **Multa sem correção:** {moeda_br(res['total_sem_correcao'])}")
     st.markdown(f"- **Multa corrigida até {res['data_atualizacao'].strftime('%m/%Y')}:** {moeda_br(res['total_corrigido'])}")
-
-    # Formulário para PDF
     with st.expander("📄 Gerar Relatório PDF", expanded=True):
         col1, col2 = st.columns([2, 3])
-        
         with col1:
             numero_processo = st.text_input("Nº do Processo", key="proc_input")
             nome_autor = st.text_input("Autor", key="autor_input")
             nome_reu = st.text_input("Réu", key="reu_input")
-            
         with col2:
             observacao = st.text_area("Observações", height=206, key="obs_input")
-
         if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
             if not numero_processo:
                 st.error("Informe o número do processo")
