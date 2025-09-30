@@ -378,7 +378,8 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
 
     st.session_state["data_fim_faixa"] = data_fim
-    st.session_state["tipo_dias_global"] = tipo_dias
+    #st.session_state["tipo_dias_global"] = tipo_dias
+    tipo_dias = st.session_state["tipo_dias_faixa"]
 
 
     # Função de callback para adicionar faixa
