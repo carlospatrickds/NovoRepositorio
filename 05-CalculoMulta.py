@@ -480,7 +480,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     )
 
     if st.session_state.modo_entrada == "Definir número de dias":
-        num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
+        num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=0, step=1, key="num_dias_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
         data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
         st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
