@@ -278,7 +278,12 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
             
             pdf.image(tmp_img_path, x=posicao_x, y=8, w=largura_imagem)
             pdf.ln(55)  # Espaço após a logo
-            
+######
+            # Cabeçalho com logo
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, "Relatório de Multa Diária Corrigida", ln=True, align="C")
+            pdf.ln(5)
+#######            
             # Limpar arquivo temporário
             import os
             os.unlink(tmp_img_path)
