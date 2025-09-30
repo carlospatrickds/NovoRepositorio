@@ -562,7 +562,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 fonte_obs = st.selectbox("Fonte das observações", ["Arial", "DejaVu"], key="fonte_obs")
                 tam_obs = st.slider("Tamanho da fonte das observações", 8, 10, 8, key="tam_obs")
             with col2:
-                observacao = st.text_area("Observações", height=415, key="obs_input")
+                observacao = st.text_area("Observações", height=406, key="obs_input")
             if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
                 if not numero_processo:
                     st.error("Informe o número do processo")
