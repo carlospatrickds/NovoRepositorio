@@ -225,7 +225,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
         if observacao and observacao.strip():
             pdf.ln(3)
             pdf.set_font(fonte_obs, "I", tam_obs)
-            pdf.multi_cell(0, 6, f"Observação: {observacao.strip()}")
+            pdf.multi_cell(0, 4, f"Observação: {observacao.strip()}")  # ← Mudei de 6 para 4
         pdf.ln(8)
         pdf.set_font("Arial", "I", 8)
         pdf.cell(
@@ -613,7 +613,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 fonte_obs = st.selectbox("Fonte das observações", ["Arial", "DejaVu"], key="fonte_obs")
                 tam_obs = st.slider("Tamanho da fonte das observações", 8, 10, 8, key="tam_obs")
             with col2:
-                observacao = st.text_area("Observações", height=206, key="obs_input")
+                observacao = st.text_area("Observações", height=405, key="obs_input")
             if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
                 if not numero_processo:
                     st.error("Informe o número do processo")
