@@ -225,7 +225,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
         if observacao and observacao.strip():
             pdf.ln(3)
             pdf.set_font(fonte_obs, "I", tam_obs)
-            pdf.multi_cell(0, 4, f"Observação: {observacao.strip()}")  # ← Mudei de 6 para 4
+            pdf.multi_cell(0, 3, f"Observação: {observacao.strip()}")  # ← Mudei de 6 para 3
         pdf.ln(8)
         pdf.set_font("Arial", "I", 8)
         pdf.cell(
