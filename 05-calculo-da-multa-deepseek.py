@@ -320,6 +320,8 @@ def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
 if "faixas" not in st.session_state:
     st.session_state.faixas = []
 
+# ...código anterior...
+
 # Interface de adição de faixas - COM NOVA OPÇÃO DE NÚMERO DE DIAS
 with st.form("nova_faixa", clear_on_submit=True):
     # Configura datas padrão usando a data de início da multa calculada
@@ -331,11 +333,15 @@ with st.form("nova_faixa", clear_on_submit=True):
     
     data_fim_padrao = data_inicio_padrao + timedelta(days=5)
 
-    # NOVA OPÇÃO: Modo de entrada (data final ou número de dias)
+    # Salva o modo de entrada no session_state para persistência
+    if "modo_entrada" not in st.session_state:
+        st.session_state.modo_entrada = "Definir data final"
+
     modo_entrada = st.radio(
         "Como deseja definir a faixa?",
         ["Definir data final", "Definir número de dias"],
         horizontal=True,
+        key="modo_entrada",  # <- chave para session_state
         help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias"
     )
 
@@ -349,12 +355,14 @@ with st.form("nova_faixa", clear_on_submit=True):
         )
     
     with col2:
-        if modo_entrada == "Definir data final":
+        # Mostra o campo correto dependendo do modo
+        if st.session_state.modo_entrada == "Definir data final":
             data_fim = st.date_input(
                 "Fim da faixa",
                 value=data_fim_padrao,
                 format="DD/MM/YYYY"
             )
+            num_dias = None
         else:
             num_dias = st.number_input(
                 "Número de dias",
@@ -364,48 +372,11 @@ with st.form("nova_faixa", clear_on_submit=True):
                 step=1,
                 help="Número de dias para a faixa"
             )
-    
-    valor_diario = st.number_input(
-        "Valor diário (R$)",
-        min_value=0.0,
-        step=1.0,
-        value=50.0
-    )
-    
-    tipo_dias = st.selectbox(
-        "Tipo de contagem",
-        ["Dias úteis", "Dias corridos"],
-        index=0
-    )
-    
-    dias_abatidos = st.number_input(
-        "Dias abatidos (prazo suspenso)",
-        min_value=0,
-        max_value=50,
-        value=0,
-        step=1
-    )
+            # Calcula o data_fim com base no número de dias
+            data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
+            st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
 
-    # Se modo é por número de dias, calcular data_fim automaticamente
-    if modo_entrada == "Definir número de dias":
-        data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
-        st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
-
-    # Botão de submit
-    submitted = st.form_submit_button("➕ Adicionar faixa")
-
-    if submitted:
-        if data_inicio <= data_fim:
-            st.session_state.faixas.append({
-                "inicio": data_inicio,
-                "fim": data_fim,
-                "valor": valor_diario,
-                "dias_uteis": tipo_dias == "Dias úteis",
-                "dias_abatidos": dias_abatidos
-            })
-            st.rerun()
-        else:
-            st.error("A data final deve ser igual ou posterior à data inicial!")
+    # ...restante do formulário...
 
 # Lista faixas adicionadas
 if st.session_state.faixas:
