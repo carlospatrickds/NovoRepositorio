@@ -239,7 +239,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
         pdf.set_font("Arial", size=8)
         pdf.cell(
             0, 6,
-            "Documento é assinado e datado eletronicamente.",
+            "Documento assinado e datado eletronicamente.",
             ln=True
         )
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
