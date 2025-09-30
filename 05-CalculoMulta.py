@@ -35,7 +35,7 @@ def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
         dias_contados = 1
         while dias_contados < num_dias:
             data_final += timedelta(days=1)
-            if cal.is_working_day(data_final) and data_final.weekday() < 10:
+            if cal.is_working_day(data_final) and data_final.weekday() < 5:
                 dias_contados += 1
     else:
         data_final = data_inicio + timedelta(days=num_dias - 1)
@@ -125,7 +125,7 @@ def distribuir_valores_por_mes(inicio, fim, valor_diario, dias_uteis=False, dias
     dia = inicio
     dias_totais = 0
     while dia <= fim:
-        if not dias_uteis or (cal.is_working_day(dia) and dia.weekday() < 10):
+        if not dias_uteis or (cal.is_working_day(dia) and dia.weekday() < 5):
             chave = dia.strftime("%Y-%m")
             valores_mes[chave] += valor_diario
             dias_totais += 1
@@ -146,7 +146,7 @@ def salvar_dados():
     """Salva todos os dados atuais em um arquivo JSON codificado"""
     dados = {
         "data_despacho": st.session_state.get("data_despacho", date.today()).isoformat(),
-        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 10),
+        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 15),
         "tipo_prazo": st.session_state.get("tipo_prazo", "Dias úteis"),
         "faixas": [
             {
@@ -227,7 +227,7 @@ def limpar_dados():
     st.session_state.faixas = []
     st.session_state.indices_selic = {}
     st.session_state.data_despacho = date.today()
-    st.session_state.prazo_cumprimento = 10
+    st.session_state.prazo_cumprimento = 15
     st.session_state.tipo_prazo = "Dias úteis"
     st.session_state.data_atualizacao = date.today()
     
@@ -414,7 +414,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "Prazo para cumprimento (dias)",
             min_value=1,
             max_value=365,
-            value=10,
+            value=15,
             step=1,
             help="Prazo em dias para cumprimento da obrigação"
         )
