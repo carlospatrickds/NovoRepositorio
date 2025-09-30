@@ -285,6 +285,8 @@ with abas[1]:
 > "Considera-se em mora o devedor a partir do momento em que se esgota o prazo conferido judicialmente para o cumprimento da obrigação." (STJ)
     """)
 
+# ... (código anterior igual) ...
+
 with abas[0]:
     st.title("📅 Cálculo de Multa Diária Corrigida por Faixa")
     st.markdown("""
@@ -357,6 +359,14 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         data_inicio_padrao = data_inicio_multa
 
     st.session_state.data_inicio_faixa = data_inicio_padrao
+    
+    modo_entrada = st.radio(
+        "Como deseja definir a faixa?",
+        ["Definir data final", "Definir número de dias"],
+        horizontal=True,
+        key="modo_entrada"
+    )
+
     data_inicio = st.date_input(
         "Início da faixa",
         value=st.session_state.get("_next_data_inicio_faixa", st.session_state.get("data_inicio_faixa", data_inicio_multa)),
@@ -392,56 +402,61 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         st.session_state["_tmp_data_fim_faixa"] = data_fim
         st.session_state["_tmp_tipo_dias_faixa"] = tipo_dias
 
-def add_faixa_callback():
-    # pega início e fim a partir das chaves temporárias (ou fallback)
-    inicio = st.session_state.get("_tmp_data_inicio_faixa", st.session_state.get("data_inicio_faixa"))
-    fim = st.session_state.get("_tmp_data_fim_faixa", st.session_state.get("data_fim_faixa"))
+    # CORREÇÃO: Função callback deve ser definida ANTES do formulário
+    def add_faixa_callback():
+        # pega início e fim a partir das chaves temporárias (ou fallback)
+        inicio = st.session_state.get("data_inicio_faixa")
+        fim = st.session_state.get("_tmp_data_fim_faixa")
+        tipo_dias = st.session_state.get("_tmp_tipo_dias_faixa", "Dias corridos")
 
-    # garante que são objeto date do Python
-    from datetime import date as _date, datetime as _dt
-    try:
-        if hasattr(inicio, "to_pydatetime"):
-            inicio = inicio.to_pydatetime().date()
-        elif isinstance(inicio, _dt):
-            inicio = inicio.date()
-    except Exception:
-        pass
+        # garante que são objeto date do Python
+        from datetime import date as _date, datetime as _dt
+        try:
+            if hasattr(inicio, "to_pydatetime"):
+                inicio = inicio.to_pydatetime().date()
+            elif isinstance(inicio, _dt):
+                inicio = inicio.date()
+        except Exception:
+            pass
 
-    try:
-        if hasattr(fim, "to_pydatetime"):
-            fim = fim.to_pydatetime().date()
-        elif isinstance(fim, _dt):
-            fim = fim.date()
-    except Exception:
-        pass
+        try:
+            if hasattr(fim, "to_pydatetime"):
+                fim = fim.to_pydatetime().date()
+            elif isinstance(fim, _dt):
+                fim = fim.date()
+        except Exception:
+            pass
 
-    nova_faixa = {
-        "inicio": inicio,
-        "fim": fim,
-        "valor": float(st.session_state.get("valor_faixa", 0.0)),
-        "dias_uteis": st.session_state.get("_tmp_tipo_dias_faixa") == "Dias úteis",
-        "dias_abatidos": int(st.session_state.get("abatidos_faixa", 0))
-    }
+        nova_faixa = {
+            "inicio": inicio,
+            "fim": fim,
+            "valor": float(st.session_state.get("valor_faixa", 0.0)),
+            "dias_uteis": tipo_dias == "Dias úteis",
+            "dias_abatidos": int(st.session_state.get("abatidos_faixa", 0))
+        }
 
-    if "faixas" not in st.session_state:
-        st.session_state["faixas"] = []
-    st.session_state.faixas.append(nova_faixa)
+        if "faixas" not in st.session_state:
+            st.session_state["faixas"] = []
+        st.session_state.faixas.append(nova_faixa)
 
-    # calcula próximo início e grava em chave NÃO vinculada ao widget
-    try:
-        proximo_inicio = fim + timedelta(days=1)
-    except Exception:
-        proximo_inicio = fim
-    st.session_state["_next_data_inicio_faixa"] = proximo_inicio
+        # calcula próximo início e grava em chave NÃO vinculada ao widget
+        try:
+            proximo_inicio = fim + timedelta(days=1)
+        except Exception:
+            proximo_inicio = fim
+        st.session_state["_next_data_inicio_faixa"] = proximo_inicio
 
-    st.success("Faixa adicionada!")
-
-
+    # CORREÇÃO: Formulário deve estar FORA da função callback
     with st.form("nova_faixa", clear_on_submit=True):
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
         dias_abatidos = st.number_input("Dias abatidos (prazo suspenso)", min_value=0, max_value=50, value=0, step=1, key="abatidos_faixa")
-        st.form_submit_button("➕ Adicionar faixa", on_click=add_faixa_callback)
+        submitted = st.form_submit_button("➕ Adicionar faixa", on_click=add_faixa_callback)
+        
+        if submitted:
+            st.success("Faixa adicionada!")
+            st.rerun()
 
+    # ... (resto do código igual) ...
     if st.session_state.faixas:
         st.markdown("### ✅ Faixas adicionadas:")
         for i, f in enumerate(st.session_state.faixas):
