@@ -352,11 +352,14 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         st.session_state.modo_entrada = "Definir data final"
     if "indices_selic" not in st.session_state:
         st.session_state.indices_selic = {}
-    if "data_inicio_faixa" not in st.session_state or st.session_state.data_inicio_faixa is None or st.session_state.data_inicio_faixa < data_inicio_multa:
-        if st.session_state.faixas:
-            data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
-        else:
-            data_inicio_padrao = data_inicio_multa
+    if "data_inicio_faixa" not in st.session_state:
+        st.session_state.data_inicio_faixa = data_inicio_multa
+    if "last_inicio_multa" not in st.session_state or st.session_state.last_inicio_multa != data_inicio_multa:
+        st.session_state.data_inicio_faixa = data_inicio_multa
+        st.session_state.last_inicio_multa = data_inicio_multa
+
+    if st.session_state.faixas:
+        data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
         st.session_state.data_inicio_faixa = data_inicio_padrao
 
     modo_entrada = st.radio(
@@ -394,10 +397,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 "dias_uteis": tipo_dias == "Dias úteis",
                 "dias_abatidos": dias_abatidos
             })
-            if isinstance(data_fim, date):
-                st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
-            else:
-                st.session_state.data_inicio_faixa = None
+            st.session_state.data_inicio_faixa = None
             st.success("Faixa adicionada!")
 
     if st.session_state.faixas:
