@@ -227,7 +227,7 @@ def limpar_dados():
     st.session_state.faixas = []
     st.session_state.indices_selic = {}
     st.session_state.data_despacho = date.today()
-    st.session_state.prazo_cumprimento = 15
+    st.session_state.prazo_cumprimento = 10
     st.session_state.tipo_prazo = "Dias úteis"
     st.session_state.data_atualizacao = date.today()
     
@@ -414,7 +414,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "Prazo para cumprimento (dias)",
             min_value=1,
             max_value=365,
-            value=15,
+            value=10,
             step=1,
             help="Prazo em dias para cumprimento da obrigação"
         )
