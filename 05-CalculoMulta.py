@@ -125,7 +125,7 @@ def distribuir_valores_por_mes(inicio, fim, valor_diario, dias_uteis=False, dias
     dia = inicio
     dias_totais = 0
     while dia <= fim:
-        if not dias_uteis or (cal.is_working_day(dia) and dia.weekday() < 5):
+        if not dias_uteis or (cal.is_working_day(dia) and dia.weekday() < 10):
             chave = dia.strftime("%Y-%m")
             valores_mes[chave] += valor_diario
             dias_totais += 1
