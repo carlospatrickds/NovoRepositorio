@@ -9,7 +9,6 @@ import tempfile
 from workalendar.america import Brazil
 
 # ======= Funções utilitárias =======
-
 def set_brazilian_locale():
     try:
         locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -338,32 +337,30 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         tipo_prazo == "Dias úteis"
     )
 
-    # Mostra datas de referência ANTES do bloco de faixas
     col_result1, col_result2 = st.columns(2)
     with col_result1:
         st.info(f"**Fim do prazo para cumprimento:** {data_fim_prazo.strftime('%d/%m/%Y')}")
     with col_result2:
         st.success(f"**Início da multa (1º dia após o prazo):** {data_inicio_multa.strftime('%d/%m/%Y')}")
 
-    # Dependências e início automático da próxima faixa
     if "faixas" not in st.session_state:
         st.session_state.faixas = []
     if "modo_entrada" not in st.session_state:
         st.session_state.modo_entrada = "Definir data final"
     if "indices_selic" not in st.session_state:
         st.session_state.indices_selic = {}
-    if "data_inicio_faixa" not in st.session_state:
-        st.session_state.data_inicio_faixa = data_inicio_multa
-    if "last_inicio_multa" not in st.session_state or st.session_state.last_inicio_multa != data_inicio_multa:
-        st.session_state.data_inicio_faixa = data_inicio_multa
-        st.session_state.last_inicio_multa = data_inicio_multa
 
-    # Atualiza data_inicio_faixa baseado na última faixa
+    # --- Bloco de campos dinâmicos fora do form ---
     if st.session_state.faixas:
-        ultima_faixa = st.session_state.faixas[-1]
-        data_inicio_padrao = ultima_faixa["fim"] + timedelta(days=1)
-        st.session_state.data_inicio_faixa = data_inicio_padrao
+        data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
+    else:
+        data_inicio_padrao = data_inicio_multa
 
+    st.session_state.data_inicio_faixa = data_inicio_padrao
+
+    data_inicio = st.date_input(
+        "Início da faixa", value=data_inicio_padrao, format="DD/MM/YYYY", key="data_inicio_faixa"
+    )
     modo_entrada = st.radio(
         "Como deseja definir a faixa?",
         ["Definir data final", "Definir número de dias"],
@@ -371,14 +368,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         key="modo_entrada"
     )
 
-    data_inicio = st.date_input(
-        "Início da faixa",
-        value=st.session_state.data_inicio_faixa,
-        format="DD/MM/YYYY",
-        key="data_inicio_faixa"
-    )
-
-    # Calcula data_fim baseado no modo de entrada
     if st.session_state.modo_entrada == "Definir número de dias":
         num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
@@ -388,27 +377,42 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), format="DD/MM/YYYY", key="data_fim_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
 
-    # Formulário para adicionar faixa
+    st.session_state["data_fim_faixa"] = data_fim
+    st.session_state["tipo_dias_faixa"] = tipo_dias
+
+    # Função de callback para adicionar faixa
+    def add_faixa_callback():
+        inicio = st.session_state.get("data_inicio_faixa")
+        fim = st.session_state.get("data_fim_faixa")
+        # Converte pandas.Timestamp para date se necessário
+        try:
+            from datetime import date as _date
+            if not isinstance(inicio, _date):
+                inicio = inicio.date()
+            if not isinstance(fim, _date):
+                fim = fim.date()
+        except Exception:
+            pass
+        nova_faixa = {
+            "inicio": inicio,
+            "fim": fim,
+            "valor": float(st.session_state.get("valor_faixa", 0.0)),
+            "dias_uteis": st.session_state.get("tipo_dias_faixa") == "Dias úteis",
+            "dias_abatidos": int(st.session_state.get("abatidos_faixa", 0))
+        }
+        st.session_state.faixas.append(nova_faixa)
+        try:
+            proximo_inicio = fim + timedelta(days=1)
+        except Exception:
+            proximo_inicio = fim
+        st.session_state["data_inicio_faixa"] = proximo_inicio
+        st.success("Faixa adicionada!")
+
     with st.form("nova_faixa", clear_on_submit=True):
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
         dias_abatidos = st.number_input("Dias abatidos (prazo suspenso)", min_value=0, max_value=50, value=0, step=1, key="abatidos_faixa")
-        submitted = st.form_submit_button("➕ Adicionar faixa")
-        
-        if submitted:
-            nova_faixa = {
-                "inicio": data_inicio,
-                "fim": data_fim,
-                "valor": valor_diario,
-                "dias_uteis": tipo_dias == "Dias úteis",
-                "dias_abatidos": dias_abatidos
-            }
-            st.session_state.faixas.append(nova_faixa)
-            # Atualiza a data de início para a próxima faixa
-            st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
-            st.success("Faixa adicionada!")
-            st.rerun()
+        st.form_submit_button("➕ Adicionar faixa", on_click=add_faixa_callback)
 
-    # Exibe faixas existentes
     if st.session_state.faixas:
         st.markdown("### ✅ Faixas adicionadas:")
         for i, f in enumerate(st.session_state.faixas):
@@ -459,7 +463,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         js = "window.open('https://www.bcb.gov.br/estabilidadefinanceira/selicfatoresacumulados')"
         st.components.v1.html(f"<script>{js}</script>", height=0, width=0)
 
-    # Cálculo dos totais mensais
     totais_mensais = defaultdict(float)
     total_dias = 0
     for faixa in st.session_state.faixas:
