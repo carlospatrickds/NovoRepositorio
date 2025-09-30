@@ -391,12 +391,12 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         submitted = st.form_submit_button("➕ Adicionar faixa")
     
     if submitted:
-    st.session_state.faixas.append({
-        "inicio": data_inicio,
-        "fim": data_fim,
-        "valor": valor_diario,
-        "dias_uteis": tipo_dias == "Dias úteis",
-        "dias_abatidos": dias_abatidos
+        st.session_state.faixas.append({
+            "inicio": data_inicio,
+            "fim": data_fim,
+            "valor": valor_diario,
+            "dias_uteis": tipo_dias == "Dias úteis",
+            "dias_abatidos": dias_abatidos
     })
     # Define a próxima data de início como o dia seguinte ao fim da faixa atual
     st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
