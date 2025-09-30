@@ -382,33 +382,50 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     tipo_dias = st.session_state["tipo_dias_faixa"]
 
 
-    # Função de callback para adicionar faixa
     def add_faixa_callback():
-        inicio = st.session_state.get("data_inicio_faixa")
-        fim = st.session_state.get("data_fim_faixa")
-        # Converte pandas.Timestamp para date se necessário
-        try:
-            from datetime import date as _date
-            if not isinstance(inicio, _date):
-                inicio = inicio.date()
-            if not isinstance(fim, _date):
-                fim = fim.date()
-        except Exception:
-            pass
-        nova_faixa = {
-            "inicio": inicio,
-            "fim": fim,
-            "valor": float(st.session_state.get("valor_faixa", 0.0)),
-            "dias_uteis": st.session_state.get("tipo_dias_faixa") == "Dias úteis",
-            "dias_abatidos": int(st.session_state.get("abatidos_faixa", 0))
-        }
-        st.session_state.faixas.append(nova_faixa)
-        try:
-            proximo_inicio = fim + timedelta(days=1)
-        except Exception:
-            proximo_inicio = fim
-        st.session_state["data_inicio_faixa"] = proximo_inicio
-        st.success("Faixa adicionada!")
+    # pega início e fim a partir das chaves temporárias (ou fallback)
+    inicio = st.session_state.get("_tmp_data_inicio_faixa", st.session_state.get("data_inicio_faixa"))
+    fim = st.session_state.get("_tmp_data_fim_faixa", st.session_state.get("data_fim_faixa"))
+
+    # garante que são objeto date do Python
+    from datetime import date as _date, datetime as _dt
+    try:
+        if hasattr(inicio, "to_pydatetime"):
+            inicio = inicio.to_pydatetime().date()
+        elif isinstance(inicio, _dt):
+            inicio = inicio.date()
+    except Exception:
+        pass
+
+    try:
+        if hasattr(fim, "to_pydatetime"):
+            fim = fim.to_pydatetime().date()
+        elif isinstance(fim, _dt):
+            fim = fim.date()
+    except Exception:
+        pass
+
+    nova_faixa = {
+        "inicio": inicio,
+        "fim": fim,
+        "valor": float(st.session_state.get("valor_faixa", 0.0)),
+        "dias_uteis": st.session_state.get("_tmp_tipo_dias_faixa") == "Dias úteis",
+        "dias_abatidos": int(st.session_state.get("abatidos_faixa", 0))
+    }
+
+    if "faixas" not in st.session_state:
+        st.session_state["faixas"] = []
+    st.session_state.faixas.append(nova_faixa)
+
+    # calcula próximo início e grava em chave NÃO vinculada ao widget
+    try:
+        proximo_inicio = fim + timedelta(days=1)
+    except Exception:
+        proximo_inicio = fim
+    st.session_state["_next_data_inicio_faixa"] = proximo_inicio
+
+    st.success("Faixa adicionada!")
+
 
     with st.form("nova_faixa", clear_on_submit=True):
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
