@@ -146,7 +146,7 @@ def salvar_dados():
     """Salva todos os dados atuais em um arquivo JSON codificado"""
     dados = {
         "data_despacho": st.session_state.get("data_despacho", date.today()).isoformat(),
-        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 15),
+        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 10),
         "tipo_prazo": st.session_state.get("tipo_prazo", "Dias úteis"),
         "faixas": [
             {
@@ -227,7 +227,7 @@ def limpar_dados():
     st.session_state.faixas = []
     st.session_state.indices_selic = {}
     st.session_state.data_despacho = date.today()
-    st.session_state.prazo_cumprimento = 15
+    st.session_state.prazo_cumprimento = 10
     st.session_state.tipo_prazo = "Dias úteis"
     st.session_state.data_atualizacao = date.today()
     
