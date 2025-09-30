@@ -389,7 +389,8 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
         dias_abatidos = st.number_input("Dias abatidos (prazo suspenso)", min_value=0, max_value=50, value=0, step=1, key="abatidos_faixa")
         submitted = st.form_submit_button("➕ Adicionar faixa")
-        if submitted:
+    
+    if submitted:
     st.session_state.faixas.append({
         "inicio": data_inicio,
         "fim": data_fim,
