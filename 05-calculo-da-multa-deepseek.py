@@ -345,7 +345,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     with col_result2:
         st.success(f"**Início da multa (1º dia após o prazo):** {data_inicio_multa.strftime('%d/%m/%Y')}")
 
-    # Dependências e início automático da próxima faixa
     if "faixas" not in st.session_state:
         st.session_state.faixas = []
     if "modo_entrada" not in st.session_state:
@@ -389,18 +388,16 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
         dias_abatidos = st.number_input("Dias abatidos (prazo suspenso)", min_value=0, max_value=50, value=0, step=1, key="abatidos_faixa")
         submitted = st.form_submit_button("➕ Adicionar faixa")
-    
-    if submitted:
-        st.session_state.faixas.append({
-            "inicio": data_inicio,
-            "fim": data_fim,
-            "valor": valor_diario,
-            "dias_uteis": tipo_dias == "Dias úteis",
-            "dias_abatidos": dias_abatidos
-        })
-        # Define a próxima data de início como o dia seguinte ao fim da faixa atual
-        st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
-        st.success("Faixa adicionada!"))
+        if submitted:
+            st.session_state.faixas.append({
+                "inicio": data_inicio,
+                "fim": data_fim,
+                "valor": valor_diario,
+                "dias_uteis": tipo_dias == "Dias úteis",
+                "dias_abatidos": dias_abatidos
+            })
+            st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
+            st.success("Faixa adicionada!")
 
     if st.session_state.faixas:
         st.markdown("### ✅ Faixas adicionadas:")
