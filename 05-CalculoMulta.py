@@ -414,7 +414,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "Prazo para cumprimento (dias)",
             min_value=1,
             max_value=365,
-            value=15,
+            value=10,
             step=1,
             help="Prazo em dias para cumprimento da obrigação"
         )
