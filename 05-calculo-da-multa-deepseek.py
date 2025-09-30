@@ -359,14 +359,11 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     st.session_state.data_inicio_faixa = data_inicio_padrao
 
     data_inicio = st.date_input(
-        "Início da faixa", value=data_inicio_padrao, format="DD/MM/YYYY", key="data_inicio_faixa"
-    )
-    modo_entrada = st.radio(
-        "Como deseja definir a faixa?",
-        ["Definir data final", "Definir número de dias"],
-        horizontal=True,
-        key="modo_entrada"
-    )
+    "Início da faixa",
+    value=st.session_state.get("_next_data_inicio_faixa", st.session_state.get("data_inicio_faixa", data_inicio_multa)),
+    format="DD/MM/YYYY",
+    key="data_inicio_faixa"
+)
 
     if st.session_state.modo_entrada == "Definir número de dias":
         num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
