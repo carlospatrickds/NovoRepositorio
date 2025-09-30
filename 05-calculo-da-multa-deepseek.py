@@ -328,6 +328,19 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             index=0,
             help="Se o prazo para cumprimento conta apenas dias úteis ou dias corridos"
         )
+
+    # Dependências dinâmicas
+    if "faixas" not in st.session_state:
+        st.session_state.faixas = []
+    if "modo_entrada" not in st.session_state:
+        st.session_state.modo_entrada = "Definir data final"
+    if "indices_selic" not in st.session_state:
+        st.session_state.indices_selic = {}
+    if "data_inicio_faixa" not in st.session_state:
+        st.session_state.data_inicio_faixa = None
+    if "indice_excluir_faixa" not in st.session_state:
+        st.session_state.indice_excluir_faixa = None
+
     def calcular_inicio_multa(data_despacho, prazo_dias, dias_uteis=False):
         cal = Brazil() if dias_uteis else None
         if dias_uteis:
@@ -347,20 +360,14 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         prazo_cumprimento, 
         tipo_prazo == "Dias úteis"
     )
-    col_result1, col_result2 = st.columns(2)
-    with col_result1:
-        st.info(f"**Fim do prazo:** {data_fim_prazo.strftime('%d/%m/%Y')}")
-    with col_result2:
-        st.success(f"**Início da multa:** {data_inicio_multa.strftime('%d/%m/%Y')}")
-    st.markdown("---")
 
-    # ==== Faixa Dinâmica ====
-    if "faixas" not in st.session_state:
-        st.session_state.faixas = []
-    if "modo_entrada" not in st.session_state:
-        st.session_state.modo_entrada = "Definir data final"
-    if "indices_selic" not in st.session_state:
-        st.session_state.indices_selic = {}
+    # --- Atualiza início da faixa automaticamente ---
+    if st.session_state.data_inicio_faixa is None or st.session_state.data_inicio_faixa < data_inicio_multa:
+        if st.session_state.faixas:
+            data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
+        else:
+            data_inicio_padrao = data_inicio_multa
+        st.session_state.data_inicio_faixa = data_inicio_padrao
 
     modo_entrada = st.radio(
         "Como deseja definir a faixa?",
@@ -369,12 +376,12 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         key="modo_entrada"
     )
 
-    if st.session_state.faixas:
-        data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
-    else:
-        data_inicio_padrao = data_inicio_multa
-
-    data_inicio = st.date_input("Início da faixa", value=data_inicio_padrao, key="data_inicio_faixa")
+    data_inicio = st.date_input(
+        "Início da faixa",
+        value=st.session_state.data_inicio_faixa,
+        format="DD/MM/YYYY",
+        key="data_inicio_faixa"
+    )
 
     if st.session_state.modo_entrada == "Definir número de dias":
         num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
@@ -382,7 +389,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
         st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
     else:
-        data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), key="data_fim_faixa")
+        data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), format="DD/MM/YYYY", key="data_fim_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
 
     # Só adicionar faixa com botão
@@ -398,6 +405,8 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 "dias_uteis": tipo_dias == "Dias úteis",
                 "dias_abatidos": dias_abatidos
             })
+            # Atualiza o início automático da próxima faixa
+            st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
             st.success("Faixa adicionada!")
 
     if st.session_state.faixas:
@@ -438,14 +447,17 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 st.session_state.faixas[i]["dias_abatidos"] = novos_dias_abatidos
             with col3:
                 if st.button(f"🗑️ Excluir", key=f"excluir_{i}"):
-                    remover_faixa(i)
-    st.markdown("---")
+                    st.session_state.indice_excluir_faixa = i
 
-    # ... (restante do código para índices, cálculo, detalhamento e PDF permanece igual ao anterior)
-# ... [todo o código anterior permanece] ...
+    # Exclusão de faixa, seguro
+    if st.session_state.get("indice_excluir_faixa") is not None:
+        idx = st.session_state["indice_excluir_faixa"]
+        if 0 <= idx < len(st.session_state.faixas):
+            st.session_state.faixas.pop(idx)
+        st.session_state.indice_excluir_faixa = None
+        st.experimental_rerun()
 
-    # ---------- A PARTIR DAQUI SEGUE O RESTANTE COMPLETO ------------
-
+    # --------- RESTANTE DO CÓDIGO PARA ÍNDICES, DETALHAMENTO E PDF SEGUE IGUAL ---------
     st.markdown("---")
     st.subheader("📅 Data de atualização dos índices")
     data_atualizacao = st.date_input("Data de atualização", value=date.today(), format="DD/MM/YYYY")
@@ -562,7 +574,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 fonte_obs = st.selectbox("Fonte das observações", ["Arial", "DejaVu"], key="fonte_obs")
                 tam_obs = st.slider("Tamanho da fonte das observações", 8, 10, 8, key="tam_obs")
             with col2:
-                observacao = st.text_area("Observações", height=406, key="obs_input")
+                observacao = st.text_area("Observações", height=206, key="obs_input")
             if st.button("🖨️ Gerar PDF", type="primary", key="pdf_button"):
                 if not numero_processo:
                     st.error("Informe o número do processo")
