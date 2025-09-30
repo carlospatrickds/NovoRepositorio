@@ -59,7 +59,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
 <b>Dias abatidos</b>: Dias que não devem ser contabilizados (ex: feriados e prazos suspensos).
 """, unsafe_allow_html=True)
 
-    # NOVA SEÇÃO: Data de início da multa
     st.markdown("---")
     st.subheader("📋 Data de Início da Multa")
     
@@ -90,7 +89,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             help="Se o prazo para cumprimento conta apenas dias úteis ou dias corridos"
         )
 
-    # Função para calcular data final do prazo e início da multa
     def calcular_inicio_multa(data_despacho, prazo_dias, dias_uteis=False):
         cal = Brazil() if dias_uteis else None
         if dias_uteis:
@@ -253,6 +251,8 @@ if "faixas" not in st.session_state:
     st.session_state.faixas = []
 if "modo_entrada" not in st.session_state:
     st.session_state.modo_entrada = "Definir data final"
+if "indices_selic" not in st.session_state:
+    st.session_state.indices_selic = {}
 
 modo_entrada = st.radio(
     "Como deseja definir a faixa?",
@@ -262,7 +262,7 @@ modo_entrada = st.radio(
     help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias"
 )
 
-with st.form("nova_faixa", clear_on_submit=False):
+with st.form("nova_faixa", clear_on_submit=True):
     if st.session_state.faixas:
         data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
     else:
@@ -329,7 +329,6 @@ with st.form("nova_faixa", clear_on_submit=False):
                 "dias_abatidos": dias_abatidos
             })
             st.success("Faixa adicionada!")
-            # st.experimental_rerun()  # REMOVIDO por estabilidade
         else:
             st.error("A data final deve ser igual ou posterior à data inicial!")
 
@@ -372,7 +371,6 @@ if st.session_state.faixas:
         with col3:
             if st.button(f"🗑️ Excluir", key=f"excluir_{i}"):
                 remover_faixa(i)
-                # st.experimental_rerun()  # REMOVIDO por estabilidade
 st.markdown("---")
 
 st.subheader("📅 Data de atualização dos índices")
@@ -403,6 +401,9 @@ if st.button("🔍 Carregar índices SELIC automaticamente"):
         indices_selic = calcular_correcao_selic(totais_mensais, data_atualizacao)
         if indices_selic:
             st.session_state.indices_selic = indices_selic
+            # Atualizar também cada índice no session_state, para os fields
+            for mes, valor in indices_selic.items():
+                st.session_state[f"indice_{mes}"] = float(valor)
             st.success("Índices SELIC calculados com sucesso!")
             st.json({k: f"{v:.2f}%" for k, v in indices_selic.items()})
         else:
@@ -412,17 +413,24 @@ meses_ordenados = sorted(totais_mensais.keys())
 indices = {}
 indices_selic_carregados = st.session_state.get('indices_selic', {})
 
+# Inicializar valores dos índices no session_state, para persistência
+for mes in meses_ordenados:
+    valor_padrao = indices_selic_carregados.get(mes, 0.0)
+    key = f"indice_{mes}"
+    if key not in st.session_state:
+        st.session_state[key] = float(valor_padrao)
+
 for mes in meses_ordenados:
     col1, col2 = st.columns([1.2, 3])
     with col1:
         data_formatada = f"{mes[5:]}/{mes[:4]}"
         st.markdown(f"**{data_formatada}**")
     with col2:
-        valor_padrao = indices_selic_carregados.get(mes, 0.0)
+        key = f"indice_{mes}"
         indice = st.number_input(
             f"Índice (%) - {data_formatada}", 
-            key=f"indice_{mes}", 
-            value=float(valor_padrao), 
+            key=key, 
+            value=st.session_state[key],
             step=0.01, 
             format="%.2f"
         )
@@ -540,7 +548,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             pdf.set_font("Arial", "I", 8)
             pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
         pdf.ln(8)
-        pdf.set_font("Arial", 8)
+        pdf.set_font("Arial", "I", 8)
         pdf.cell(
             0, 6,
             unidecode("Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil"),
