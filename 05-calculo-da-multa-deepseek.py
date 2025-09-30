@@ -236,7 +236,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
             ln=True
         )
         pdf.ln(6)
-        pdf.set_font("Arial", size=8)
+        pdf.set_font("Arial", size=10)
         pdf.cell(
             0, 6,
             "Documento assinado e datado eletronicamente.",
