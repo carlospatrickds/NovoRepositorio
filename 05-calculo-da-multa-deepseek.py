@@ -382,7 +382,6 @@ else:
     st.session_state["_tmp_tipo_dias_faixa"] = tipo_dias
 
 
-
 def add_faixa_callback():
     # pega início e fim a partir das chaves temporárias (ou fallback)
     inicio = st.session_state.get("_tmp_data_inicio_faixa", st.session_state.get("data_inicio_faixa"))
