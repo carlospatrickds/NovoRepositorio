@@ -441,8 +441,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                     remover_faixa(i)
                     st.rerun()
 
-    # ... [restante do código: índices, cálculo, detalhamento, PDF]
-    # --------- RESTANTE DO CÓDIGO PARA ÍNDICES, DETALHAMENTO E PDF SEGUE IGUAL ---------
     st.markdown("---")
     st.subheader("📅 Data de atualização dos índices")
     data_atualizacao = st.date_input("Data de atualização", value=date.today(), format="DD/MM/YYYY")
@@ -529,7 +527,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "data_inicio_multa": data_inicio_multa
         }
 
-    # Detalhamento visual bonito
     if "resultado_multa" in st.session_state:
         res = st.session_state.resultado_multa
         detalhamento = []
