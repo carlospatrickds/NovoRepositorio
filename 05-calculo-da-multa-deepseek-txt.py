@@ -139,7 +139,7 @@ def limpar_dados():
         for mes, valor in distribuido.items():
             totais_mensais[mes] += valor
         total_dias += dias_faixa
-st.subheader("📊 Índices por mês (%)")
+    st.subheader("📊 Índices por mês (%)")
     if st.button("🔍 Carregar índices SELIC automaticamente"):
         with st.spinner("Calculando correção SELIC..."):
             indices_selic = calcular_correcao_selic(totais_mensais, data_atualizacao)
