@@ -259,7 +259,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
         # === ADICIONAR LOGO CENTRALIZADA ===
         try:
             # URL da sua imagem no GitHub (usando raw.githubusercontent.com)
-            logo_url = "https://raw.githubusercontent.com/carlospatrickds/NovoRepositorio/main/logjfpe.png"
+            logo_url = "https://raw.githubusercontent.com/carlospatrickds/NovoRepositorio/main/JFPE_JUS_FED_EM_PE.png"
             
             # Baixar a imagem
             response = requests.get(logo_url)
