@@ -397,10 +397,10 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
             "valor": valor_diario,
             "dias_uteis": tipo_dias == "Dias úteis",
             "dias_abatidos": dias_abatidos
-    })
-    # Define a próxima data de início como o dia seguinte ao fim da faixa atual
-    st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
-    st.success("Faixa adicionada!")
+        })
+        # Define a próxima data de início como o dia seguinte ao fim da faixa atual
+        st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
+        st.success("Faixa adicionada!"))
 
     if st.session_state.faixas:
         st.markdown("### ✅ Faixas adicionadas:")
