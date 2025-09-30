@@ -32,7 +32,7 @@ with abas[1]:
 
 ### 📅 Contagem de prazo (para cumprimento):
 - O prazo começa no **dia útil seguinte à ciência**, ou seja: `08/03/2025`
-- A contagem é **corrida**, se não houver disposição em contrárioo
+- A contagem é **corrida**, se não houver disposição em contrário
 - O prazo termina em: `04/04/2025 às 23:59:59`
 
 ---
@@ -47,7 +47,7 @@ with abas[1]:
 - Art. 219, caput, do CPC: prazos são contados **em dias úteis** apenas para prazos processuais — não se aplicando automaticamente às obrigações de fazer.
 - Jurisprudência considera que a multa inicia no **1º dia após o término do prazo concedido na intimação**, se não houver cumprimento.
 
-> “Considera-se em mora o devedor a partir do momento em que se esgota o prazo conferido judicialmente para o cumprimento da obrigação.” (STJ)
+> "Considera-se em mora o devedor a partir do momento em que se esgota o prazo conferido judicialmente para o cumprimento da obrigação." (STJ)
     """)
 
 # === ABA APLICAÇÃO ===
@@ -296,11 +296,31 @@ def adicionar_faixa(nova_faixa):
     """Adiciona nova faixa"""
     st.session_state.faixas.append(nova_faixa)
 
+# NOVA FUNÇÃO: Calcular data final baseada em número de dias
+def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
+    """Calcula a data final baseada no número de dias e tipo de contagem"""
+    cal = Brazil() if dias_uteis else None
+    
+    if dias_uteis:
+        # Para dias úteis, conta apenas dias de trabalho
+        data_final = data_inicio
+        dias_contados = 0
+        
+        while dias_contados < num_dias:
+            data_final += timedelta(days=1)
+            if cal.is_working_day(data_final) and data_final.weekday() < 5:
+                dias_contados += 1
+    else:
+        # Para dias corridos, conta todos os dias
+        data_final = data_inicio + timedelta(days=num_dias - 1)
+    
+    return data_final
+
 # Inicialização do session state
 if "faixas" not in st.session_state:
     st.session_state.faixas = []
 
-# Interface de adição de faixas - AGORA COM DATA INICIAL SUGERIDA
+# Interface de adição de faixas - COM NOVA OPÇÃO DE NÚMERO DE DIAS
 with st.form("nova_faixa", clear_on_submit=True):
     # Configura datas padrão usando a data de início da multa calculada
     if st.session_state.faixas:
@@ -311,6 +331,14 @@ with st.form("nova_faixa", clear_on_submit=True):
     
     data_fim_padrao = data_inicio_padrao + timedelta(days=5)
 
+    # NOVA OPÇÃO: Modo de entrada (data final ou número de dias)
+    modo_entrada = st.radio(
+        "Como deseja definir a faixa?",
+        ["Definir data final", "Definir número de dias"],
+        horizontal=True,
+        help="Escolha entre informar a data final diretamente ou calcular baseado no número de dias"
+    )
+
     # Campos do formulário
     col1, col2 = st.columns(2)
     with col1:
@@ -319,12 +347,23 @@ with st.form("nova_faixa", clear_on_submit=True):
             value=data_inicio_padrao,
             format="DD/MM/YYYY"
         )
+    
     with col2:
-        data_fim = st.date_input(
-            "Fim da faixa",
-            value=data_fim_padrao,
-            format="DD/MM/YYYY"
-        )
+        if modo_entrada == "Definir data final":
+            data_fim = st.date_input(
+                "Fim da faixa",
+                value=data_fim_padrao,
+                format="DD/MM/YYYY"
+            )
+        else:
+            num_dias = st.number_input(
+                "Número de dias",
+                min_value=1,
+                max_value=365,
+                value=5,
+                step=1,
+                help="Número de dias para a faixa"
+            )
     
     valor_diario = st.number_input(
         "Valor diário (R$)",
@@ -346,6 +385,11 @@ with st.form("nova_faixa", clear_on_submit=True):
         value=0,
         step=1
     )
+
+    # Se modo é por número de dias, calcular data_fim automaticamente
+    if modo_entrada == "Definir número de dias":
+        data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
+        st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
 
     # Botão de submit
     submitted = st.form_submit_button("➕ Adicionar faixa")
@@ -369,10 +413,23 @@ if st.session_state.faixas:
     for i, f in enumerate(st.session_state.faixas):
         col1, col2, col3 = st.columns([4, 3, 1])
         with col1:
+            # CALCULA DIAS CORRETAMENTE PARA EXIBIÇÃO
+            if f.get("dias_uteis", False):
+                cal = Brazil()
+                dia = f["inicio"]
+                dias_contabilizados = 0
+                while dia <= f["fim"]:
+                    if cal.is_working_day(dia) and dia.weekday() < 5:
+                        dias_contabilizados += 1
+                    dia += timedelta(days=1)
+                dias_contabilizados = max(0, dias_contabilizados - f.get("dias_abatidos", 0))
+            else:
+                dias_contabilizados = (f["fim"] - f["inicio"]).days + 1 - f.get("dias_abatidos", 0)
+            
             st.markdown(
                 f"- Faixa {i+1}: {f['inicio'].strftime('%d/%m/%Y')} a {f['fim'].strftime('%d/%m/%Y')} – {moeda_br(f['valor'])}/dia"
             )
-            st.caption(f"Tipo: {'Dias úteis' if f.get('dias_uteis', False) else 'Dias corridos'} | Dias abatidos: {f.get('dias_abatidos', 0)}")
+            st.caption(f"Tipo: {'Dias úteis' if f.get('dias_uteis', False) else 'Dias corridos'} | Dias: {dias_contabilizados} | Dias abatidos: {f.get('dias_abatidos', 0)}")
         
         with col2:
             # Permite edição dos parâmetros
@@ -605,14 +662,14 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
         pdf.set_font("Arial", "I", 8)
         pdf.cell(
             0, 6,
-            "Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil",
+            unidecode("Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil"),
             ln=True
         )
 
         pdf.ln(6)
         pdf.cell(
             0, 6,
-            "Este documento é assinado e datado eletronicamente.",
+            unidecode("Este documento é assinado e datado eletronicamente."),
             ln=True
         )
         # Gerar PDF
