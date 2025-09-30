@@ -35,7 +35,7 @@ def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
         dias_contados = 1
         while dias_contados < num_dias:
             data_final += timedelta(days=1)
-            if cal.is_working_day(data_final) and data_final.weekday() < 5:
+            if cal.is_working_day(data_final) and data_final.weekday() < 10:
                 dias_contados += 1
     else:
         data_final = data_inicio + timedelta(days=num_dias - 1)
@@ -146,7 +146,7 @@ def salvar_dados():
     """Salva todos os dados atuais em um arquivo JSON codificado"""
     dados = {
         "data_despacho": st.session_state.get("data_despacho", date.today()).isoformat(),
-        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 15),
+        "prazo_cumprimento": st.session_state.get("prazo_cumprimento", 10),
         "tipo_prazo": st.session_state.get("tipo_prazo", "Dias úteis"),
         "faixas": [
             {
