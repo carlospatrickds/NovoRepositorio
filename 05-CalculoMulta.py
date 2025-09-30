@@ -308,10 +308,9 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None, fonte
         pdf.ln(10)
 
         #######
-                  
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, "Relatório de Multa Diária Corrigida", ln=True, align="C")
-            pdf.ln(5)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Relatório de Multa Diária Corrigida", ln=True, align="C")
+        pdf.ln(5)
         #########
 
         # Cálculo do Início da Multa
