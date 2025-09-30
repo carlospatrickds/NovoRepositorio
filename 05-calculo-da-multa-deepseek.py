@@ -345,6 +345,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     with col_result2:
         st.success(f"**Início da multa (1º dia após o prazo):** {data_inicio_multa.strftime('%d/%m/%Y')}")
 
+    # Dependências e início automático da próxima faixa
     if "faixas" not in st.session_state:
         st.session_state.faixas = []
     if "modo_entrada" not in st.session_state:
@@ -357,8 +358,10 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         st.session_state.data_inicio_faixa = data_inicio_multa
         st.session_state.last_inicio_multa = data_inicio_multa
 
+    # Atualiza data_inicio_faixa baseado na última faixa
     if st.session_state.faixas:
-        data_inicio_padrao = st.session_state.faixas[-1]["fim"] + timedelta(days=1)
+        ultima_faixa = st.session_state.faixas[-1]
+        data_inicio_padrao = ultima_faixa["fim"] + timedelta(days=1)
         st.session_state.data_inicio_faixa = data_inicio_padrao
 
     modo_entrada = st.radio(
@@ -375,6 +378,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         key="data_inicio_faixa"
     )
 
+    # Calcula data_fim baseado no modo de entrada
     if st.session_state.modo_entrada == "Definir número de dias":
         num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
@@ -384,27 +388,27 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), format="DD/MM/YYYY", key="data_fim_faixa")
         tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
 
+    # Formulário para adicionar faixa
     with st.form("nova_faixa", clear_on_submit=True):
         valor_diario = st.number_input("Valor diário (R$)", min_value=0.0, step=1.0, value=50.0, key="valor_faixa")
         dias_abatidos = st.number_input("Dias abatidos (prazo suspenso)", min_value=0, max_value=50, value=0, step=1, key="abatidos_faixa")
         submitted = st.form_submit_button("➕ Adicionar faixa")
+        
         if submitted:
-            st.session_state.faixas.append({
+            nova_faixa = {
                 "inicio": data_inicio,
                 "fim": data_fim,
                 "valor": valor_diario,
                 "dias_uteis": tipo_dias == "Dias úteis",
                 "dias_abatidos": dias_abatidos
-            })
-            # Garantia de que data_fim é sempre date!
-            if isinstance(data_fim, datetime):
-                data_fim = data_fim.date()
-            if isinstance(data_fim, date):
-                st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
-            else:
-                st.session_state.data_inicio_faixa = data_inicio_multa
+            }
+            st.session_state.faixas.append(nova_faixa)
+            # Atualiza a data de início para a próxima faixa
+            st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
             st.success("Faixa adicionada!")
+            st.rerun()
 
+    # Exibe faixas existentes
     if st.session_state.faixas:
         st.markdown("### ✅ Faixas adicionadas:")
         for i, f in enumerate(st.session_state.faixas):
@@ -455,6 +459,7 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
         js = "window.open('https://www.bcb.gov.br/estabilidadefinanceira/selicfatoresacumulados')"
         st.components.v1.html(f"<script>{js}</script>", height=0, width=0)
 
+    # Cálculo dos totais mensais
     totais_mensais = defaultdict(float)
     total_dias = 0
     for faixa in st.session_state.faixas:
