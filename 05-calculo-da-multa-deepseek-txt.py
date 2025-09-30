@@ -35,7 +35,7 @@ def calcular_data_final(data_inicio, num_dias, dias_uteis=False):
         dias_contados = 1
         while dias_contados < num_dias:
             data_final += timedelta(days=1)
-            if cal.is_working_day(data_final) and data_final.weekday() < 5:
+            if cal.is_working_day(data_final) and data_final.weekday() < 10:
                 dias_contados += 1
     else:
         data_final = data_inicio + timedelta(days=num_dias - 1)
