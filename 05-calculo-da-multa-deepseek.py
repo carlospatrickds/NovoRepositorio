@@ -366,20 +366,24 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
 )
 
     if st.session_state.modo_entrada == "Definir número de dias":
-        num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
-        tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
-        data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
-        st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
-    else:
-        data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), format="DD/MM/YYYY", key="data_fim_faixa")
-        tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
+    num_dias = st.number_input("Número de dias", min_value=1, max_value=365, value=5, step=1, key="num_dias_faixa")
+    tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
+    data_fim = calcular_data_final(data_inicio, num_dias, tipo_dias == "Dias úteis")
+    st.info(f"**Data final calculada:** {data_fim.strftime('%d/%m/%Y')}")
+    # grava em chave temporária (NÃO sobrescreve a key do widget)
+    st.session_state["_tmp_data_fim_faixa"] = data_fim
+    st.session_state["_tmp_tipo_dias_faixa"] = tipo_dias
+else:
+    # widget onde o usuário escolhe a data final
+    data_fim = st.date_input("Fim da faixa", value=data_inicio + timedelta(days=5), format="DD/MM/YYYY", key="data_fim_faixa")
+    tipo_dias = st.selectbox("Tipo de contagem", ["Dias úteis", "Dias corridos"], index=0, key="tipo_dias_faixa")
+    # COPIA o valor do widget para a chave temporária para que a callback leia sempre a mesma chave
+    st.session_state["_tmp_data_fim_faixa"] = st.session_state.get("data_fim_faixa", data_fim)
+    st.session_state["_tmp_tipo_dias_faixa"] = tipo_dias
 
-    st.session_state["data_fim_faixa"] = data_fim
-    #st.session_state["tipo_dias_global"] = tipo_dias
-    tipo_dias = st.session_state["tipo_dias_faixa"]
 
 
-    def add_faixa_callback():
+def add_faixa_callback():
     # pega início e fim a partir das chaves temporárias (ou fallback)
     inicio = st.session_state.get("_tmp_data_inicio_faixa", st.session_state.get("data_inicio_faixa"))
     fim = st.session_state.get("_tmp_data_fim_faixa", st.session_state.get("data_fim_faixa"))
