@@ -540,7 +540,7 @@ def gerar_pdf(res, numero_processo, nome_autor, nome_reu, observacao=None):
             pdf.set_font("Arial", "I", 8)
             pdf.multi_cell(0, 6, f"Observação: {unidecode(observacao.strip())}")
         pdf.ln(8)
-        pdf.set_font("Arial", "I", 8)
+        pdf.set_font("Arial", 8)
         pdf.cell(
             0, 6,
             unidecode("Nota: A correção foi realizada com base na taxa SELIC acumulada, conforme fatores disponíveis no site do Banco Central do Brasil"),
