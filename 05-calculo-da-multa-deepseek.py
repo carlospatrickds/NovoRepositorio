@@ -345,7 +345,6 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
     with col_result2:
         st.success(f"**Início da multa (1º dia após o prazo):** {data_inicio_multa.strftime('%d/%m/%Y')}")
 
-    # Dependências e início automático da próxima faixa
     if "faixas" not in st.session_state:
         st.session_state.faixas = []
     if "modo_entrada" not in st.session_state:
@@ -397,8 +396,13 @@ Adicione faixas de multa com valores diferentes. O total por mês será corrigid
                 "dias_uteis": tipo_dias == "Dias úteis",
                 "dias_abatidos": dias_abatidos
             })
-            # CORREÇÃO: Define a próxima data de início como o dia seguinte ao fim da faixa atual
-            st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
+            # Garantia de que data_fim é sempre date!
+            if isinstance(data_fim, datetime):
+                data_fim = data_fim.date()
+            if isinstance(data_fim, date):
+                st.session_state.data_inicio_faixa = data_fim + timedelta(days=1)
+            else:
+                st.session_state.data_inicio_faixa = data_inicio_multa
             st.success("Faixa adicionada!")
 
     if st.session_state.faixas:
