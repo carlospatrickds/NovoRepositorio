@@ -100,7 +100,7 @@ with col1:
     <div class="link-card">
         <h3>📅 Cálculo de Multa Diária Corrigida por Faixa</h3>
         <p>Adicione faixas de multa com valores diferentes. O total por mês será corrigido por índice informado manualmente ou automaticamente pela SELIC.</p>
-        <a href="https://07-calcmulta-logo.streamlit.app/" target="_blank">
+        <a href="https://05-calculomulta.streamlit.app//" target="_blank">
             <button class="link-button">🔗 Acessar Calculadora de Multa</button>
         </a>
     </div>
