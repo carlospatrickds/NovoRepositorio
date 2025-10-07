@@ -88,9 +88,18 @@ def padronizar_colunas(df, tipo_tabela):
 
 
 def processar_dados(df, tipo_tabela):
+    """
+    Processa os dados do CSV conforme o tipo de tabela.
+    Converte dataChegada em datetime de forma robusta (pd.to_datetime).
+    """
     df = padronizar_colunas(df, tipo_tabela)
     processed_df = df.copy()
 
+    # Garantir que a coluna exista
+    if 'dataChegada' not in processed_df.columns:
+        processed_df['dataChegada'] = pd.NA
+
+    # Funções auxiliares (mantive a sua lógica)
     def extrair_servidor(tags):
         if pd.isna(tags):
             return "Sem etiqueta"
@@ -109,20 +118,32 @@ def processar_dados(df, tipo_tabela):
                 return tag
         return "Vara não identificada"
 
-    def extrair_data(data_str):
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            return datetime.strptime(data_part, '%d/%m/%Y')
-        except:
-            return None
+    # Limpar/normalizar a coluna de data (pegar parte antes de vírgula, remover espaços)
+    s = processed_df['dataChegada'].astype(str).fillna('').str.strip()
+    # Sevier para eliminar a string 'nan' produzida por astype(str)
+    s = s.replace({'nan': ''})
+
+    # Extrair parte antes de vírgula (caso o campo venha com "01/01/2024, 12:00" ou similar)
+    s_clean = s.str.split(',').str[0].str.strip()
+    # Converter para datetime; dayfirst=True porque seu padrão é dd/mm/yyyy
+    processed_df['data_chegada_obj'] = pd.to_datetime(s_clean, dayfirst=True, errors='coerce')
+
+    # Criar mês e dia usando .dt agora que é datetime; usar Int64 (nullable) para não virar float
+    processed_df['mes'] = processed_df['data_chegada_obj'].dt.month.astype('Int64')
+    processed_df['dia'] = processed_df['data_chegada_obj'].dt.day.astype('Int64')
+
+    # Formatar data de chegada (string) de forma segura
+    processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y').fillna('')
+
+    # Extrair servidor e vara a partir das tags (mantendo sua lógica)
+    if 'tagsProcessoList' not in processed_df.columns:
+        processed_df['tagsProcessoList'] = pd.NA
 
     processed_df['servidor'] = processed_df['tagsProcessoList'].apply(extrair_servidor)
     processed_df['vara'] = processed_df['tagsProcessoList'].apply(extrair_vara)
-    processed_df['data_chegada_obj'] = processed_df['dataChegada'].apply(extrair_data)
-    processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
-    processed_df['dia'] = processed_df['data_chegada_obj'].dt.day
+
+    # Ordenar por data de chegada (mais recente primeiro)
+    processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
 
     return processed_df
 
