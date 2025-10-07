@@ -7,9 +7,11 @@ import altair as alt
 from fpdf import FPDF
 import base64
 
+# --- CONFIGURAÇÕES E CSS ---
+
 # Configuração da página
 st.set_page_config(
-    page_title="Gestão de Processos Judiciais",
+    page_title="Gestão de Processos Judiciais Unificada",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -45,19 +47,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- MAPA DE COLUNAS UNIFICADO ---
+
+# Novo Nome (PADRÃO) -> Lista de Nomes Possíveis nos CSVs
+COLUNA_MAP = {
+    'NUMERO_PROCESSO': ['Número do Processo', 'numeroProcesso'],
+    'POLO_ATIVO': ['Polo Ativo', 'poloAtivo'],
+    'POLO_PASSIVO': ['Polo Passivo', 'poloPassivo'],
+    'ORGAO_JULGADOR': ['Órgão Julgador', 'orgaoJulgador'],
+    'ASSUNTO_PRINCIPAL': ['Assunto', 'assuntoPrincipal'],
+    'TAREFA': ['Tarefa', 'nomeTarefa'],
+    'ETIQUETAS': ['Etiquetas', 'tagsProcessoList'],
+    'DIAS': ['Dias'],  # Coluna 'Dias' do primeiro arquivo
+    'DATA_CHEGADA_RAW': ['Data Último Movimento', 'dataChegada'] # Coluna bruta de data para processamento
+}
+
+# --- FUNÇÕES AUXILIARES ---
+
 def get_local_time():
     """Obtém o horário local do Brasil (UTC-3)"""
     utc_now = datetime.now(timezone.utc)
     brasil_tz = timezone(timedelta(hours=-3))
     return utc_now.astimezone(brasil_tz)
 
+def mapear_e_padronizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
+    """Renomeia as colunas do DataFrame para um padrão único."""
+    colunas_padronizadas = {}
+    
+    for padrao, possiveis in COLUNA_MAP.items():
+        # Encontra o nome da coluna que existe no arquivo atual
+        coluna_encontrada = next((col for col in possiveis if col in df.columns), None)
+        
+        if coluna_encontrada:
+            colunas_padronizadas[coluna_encontrada] = padrao
+        
+    df.rename(columns=colunas_padronizadas, inplace=True)
+    return df
+
 def processar_dados(df):
-    """Processa os dados do CSV similar à planilha original"""
+    """Processa os dados do CSV, usando APENAS nomes de colunas padronizados."""
     
     # Criar cópia para não modificar o original
     processed_df = df.copy()
     
-    # Processar tags - separar a coluna tagsProcessoList
+    # Colunas essenciais que DEVEM existir após a padronização
+    if 'ETIQUETAS' not in processed_df.columns:
+        st.error("Coluna 'ETIQUETAS' (ou 'tagsProcessoList') não encontrada. O arquivo não está no formato esperado.")
+        return processed_df
+    
+    # --- 1. Processar Tags ---
+    
     def extrair_servidor(tags):
         if pd.isna(tags):
             return "Sem etiqueta"
@@ -75,83 +114,114 @@ def processar_dados(df):
             if 'Vara Federal' in tag:
                 return tag
         return "Vara não identificada"
+        
+    # Aplicar processamento de tags
+    processed_df['servidor'] = processed_df['ETIQUETAS'].apply(extrair_servidor)
+    processed_df['vara'] = processed_df['ETIQUETAS'].apply(extrair_vara)
+
+    # --- 2. Processar Datas e Calcular Dias ---
     
-    def extrair_data_chegada(data_str):
-        """Extrai data de chegada para ordenação cronológica"""
-        if pd.isna(data_str):
+    if 'DATA_CHEGADA_RAW' in processed_df.columns:
+        
+        def extrair_data_chegada(data_str):
+            """Tenta extrair a data de chegada no formato DD/MM/YYYY para objeto datetime."""
+            if pd.isna(data_str):
+                return None
+            data_str = str(data_str)
+            
+            # Caso 1: Formato "DD/MM/YYYY, HH:MM:SS" (modelotester)
+            try:
+                data_part = data_str.split(',')[0].strip()
+                return datetime.strptime(data_part, '%d/%m/%Y')
+            except:
+                pass
+            
+            # Caso 2: Formato Timestamp (Processos_Painel_Gerencial_PJE+R)
+            try:
+                # O primeiro arquivo usa um timestamp em milissegundos
+                if len(data_str) > 10 and data_str.isdigit():
+                    return pd.to_datetime(int(data_str), unit='ms').to_pydatetime()
+            except:
+                pass
+                
             return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            return datetime.strptime(data_part, '%d/%m/%Y')
-        except:
-            return None
-    
-    def extrair_mes_data(data_str):
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            data_obj = datetime.strptime(data_part, '%d/%m/%Y')
-            return data_obj.month
-        except:
-            return None
-    
-    def extrair_dia_data(data_str):
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            data_obj = datetime.strptime(data_part, '%d/%m/%Y')
-            return data_obj.day
-        except:
-            return None
-    
-    # Aplicar processamento
-    processed_df['servidor'] = processed_df['tagsProcessoList'].apply(extrair_servidor)
-    processed_df['vara'] = processed_df['tagsProcessoList'].apply(extrair_vara)
-    processed_df['data_chegada_obj'] = processed_df['dataChegada'].apply(extrair_data_chegada)
-    processed_df['mes'] = processed_df['dataChegada'].apply(extrair_mes_data)
-    processed_df['dia'] = processed_df['dataChegada'].apply(extrair_dia_data)
-    
-    # Formatar data de chegada (apenas data)
-    processed_df['data_chegada_formatada'] = processed_df['dataChegada'].apply(
-        lambda x: str(x).split(',')[0] if pd.notna(x) else ''
-    )
-    
-    # Ordenar por data de chegada (mais recente primeiro)
-    processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
-    
+
+        # Aplica a extração da data
+        processed_df['data_chegada_obj'] = processed_df['DATA_CHEGADA_RAW'].apply(extrair_data_chegada)
+        
+        # Calcula Mês e Dia
+        processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
+        processed_df['dia'] = processed_df['data_chegada_obj'].dt.day
+        
+        # Formatar data de chegada (apenas data)
+        processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y')
+        
+        # Calcular coluna 'DIAS' se não existir
+        if 'DIAS' not in processed_df.columns:
+            st.info("Calculando coluna 'DIAS' a partir da data de chegada...")
+            # Definindo uma data de referência (ex: data de extração do modelo 1)
+            data_referencia = pd.to_datetime('2025-10-07') 
+            
+            # Calcular a diferença em dias
+            processed_df['DIAS'] = (data_referencia - processed_df['data_chegada_obj']).dt.days
+            processed_df['DIAS'] = processed_df['DIAS'].fillna(0).astype(int)
+        
+        # Ordenar por data de chegada (mais recente primeiro)
+        processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
+        
+    # Colunas de saída (usando os nomes padronizados)
+    cols_to_keep = list(COLUNA_MAP.keys()) + ['servidor', 'vara', 'data_chegada_obj', 'mes', 'dia', 'data_chegada_formatada']
+    processed_df = processed_df.filter(items=cols_to_keep)
+
     return processed_df
 
 def criar_estatisticas(df):
-    """Cria estatísticas similares à planilha dados_individuais"""
+    """Cria estatísticas usando APENAS nomes de colunas padronizados."""
     
     stats = {}
     
-    # Estatísticas por Polo Passivo (ordenado do maior para o menor)
-    polo_passivo_stats = df['poloPassivo'].value_counts().head(10)
-    stats['polo_passivo'] = polo_passivo_stats
-    
+    # Estatísticas por Polo Passivo
+    if 'POLO_PASSIVO' in df.columns:
+        polo_passivo_stats = df['POLO_PASSIVO'].value_counts().head(10)
+        stats['polo_passivo'] = polo_passivo_stats
+    else:
+        stats['polo_passivo'] = pd.Series(dtype='int64')
+
     # Estatísticas por Mês
-    mes_stats = df['mes'].value_counts().sort_index()
-    stats['mes'] = mes_stats
-    
+    if 'mes' in df.columns:
+        mes_stats = df['mes'].value_counts().sort_index()
+        stats['mes'] = mes_stats
+    else:
+        stats['mes'] = pd.Series(dtype='int64')
+
     # Estatísticas por Servidor
-    servidor_stats = df['servidor'].value_counts()
-    stats['servidor'] = servidor_stats
-    
+    if 'servidor' in df.columns:
+        servidor_stats = df['servidor'].value_counts()
+        stats['servidor'] = servidor_stats
+    else:
+        stats['servidor'] = pd.Series(dtype='int64')
+
     # Estatísticas por Vara
-    vara_stats = df['vara'].value_counts().head(10)
-    stats['vara'] = vara_stats
-    
+    if 'vara' in df.columns:
+        vara_stats = df['vara'].value_counts().head(10)
+        stats['vara'] = vara_stats
+    else:
+        stats['vara'] = pd.Series(dtype='int64')
+
     # Estatísticas por Assunto
-    assunto_stats = df['assuntoPrincipal'].value_counts().head(10)
-    stats['assunto'] = assunto_stats
+    if 'ASSUNTO_PRINCIPAL' in df.columns:
+        assunto_stats = df['ASSUNTO_PRINCIPAL'].value_counts().head(10)
+        stats['assunto'] = assunto_stats
+    else:
+        stats['assunto'] = pd.Series(dtype='int64')
     
     return stats
 
+# --- AS FUNÇÕES DE CRIAÇÃO DE GRÁFICOS E RELATÓRIOS (PDF) NÃO PRECISAM SER ALTERADAS ---
+# (Elas já dependem apenas dos outputs de criar_estatisticas e dos DataFrames filtrados)
+
 def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
-    """Cria gráfico de barras usando Altair"""
+    # ... (Código original inalterado) ...
     df_plot = pd.DataFrame({
         eixo_x: dados.index,
         eixo_y: dados.values
@@ -170,7 +240,7 @@ def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
     return chart
 
 def criar_grafico_pizza_com_legenda(dados, titulo):
-    """Cria gráfico de pizza com legenda e valores"""
+    # ... (Código original inalterado) ...
     df_plot = pd.DataFrame({
         'categoria': dados.index,
         'valor': dados.values,
@@ -193,8 +263,7 @@ def criar_grafico_pizza_com_legenda(dados, titulo):
     return chart
 
 def criar_relatorio_visao_geral(stats, total_processos):
-    """Cria relatório PDF para a aba Visão Geral"""
-    
+    # ... (Código original inalterado) ...
     class PDF(FPDF):
         def header(self):
             # Cabeçalho
@@ -261,8 +330,7 @@ def criar_relatorio_visao_geral(stats, total_processos):
     return pdf
 
 def criar_relatorio_estatisticas(stats):
-    """Cria relatório PDF para a aba Estatísticas"""
-    
+    # ... (Código original inalterado) ...
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 16)
@@ -333,8 +401,7 @@ def criar_relatorio_estatisticas(stats):
     return pdf
 
 def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
-    """Cria relatório PDF para a aba Filtros Avançados"""
-    
+    # ... (Código original inalterado) ...
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 16)
@@ -379,6 +446,8 @@ def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
         # Dados da tabela - TODOS os processos filtrados
         pdf.set_font('Arial', '', 7)
         for _, row in df_filtrado.iterrows():
+            # **ATENÇÃO:** As colunas aqui (Nº Processo, Polo Ativo, etc) precisam
+            # corresponder aos nomes finais usados na main() antes de chamar esta função!
             n_processo = str(row['Nº Processo']) if pd.notna(row['Nº Processo']) else ''
             polo_ativo = str(row['Polo Ativo']) if pd.notna(row['Polo Ativo']) else ''
             data_chegada = str(row['Data Chegada']) if pd.notna(row['Data Chegada']) else ''
@@ -410,6 +479,9 @@ def gerar_link_download_pdf(pdf, nome_arquivo):
         st.error(f"Erro ao gerar PDF: {e}")
         return ""
 
+
+# --- FUNÇÃO PRINCIPAL (MAIN) ---
+
 def main():
     # Header
     st.markdown("""
@@ -433,12 +505,16 @@ def main():
             # Ler arquivo CSV
             df = pd.read_csv(uploaded_file, delimiter=';', encoding='utf-8')
             
-            # Mostrar informações básicas do arquivo
-            st.success(f"✅ Arquivo carregado com sucesso! {len(df)} processos encontrados.")
+            # 1. Mapear e Padronizar Colunas
+            with st.spinner('Padronizando cabeçalhos...'):
+                df_padronizado = mapear_e_padronizar_colunas(df)
             
-            # Processar dados
+            # Mostrar informações básicas do arquivo
+            st.success(f"✅ Arquivo carregado com sucesso! {len(df_padronizado)} processos encontrados.")
+            
+            # 2. Processar dados (calcula dias, extrai servidor, etc.)
             with st.spinner('Processando dados...'):
-                processed_df = processar_dados(df)
+                processed_df = processar_dados(df_padronizado)
                 stats = criar_estatisticas(processed_df)
             
             # Abas para organização (removida a aba Lista de Processos)
@@ -463,11 +539,11 @@ def main():
                     st.metric("Total de Processos", len(processed_df))
                 
                 with col2:
-                    servidores_unicos = processed_df['servidor'].nunique()
+                    servidores_unicos = processed_df['servidor'].nunique() if 'servidor' in processed_df.columns else 0
                     st.metric("Servidores Envolvidos", servidores_unicos)
                 
                 with col3:
-                    varas_unicas = processed_df['vara'].nunique()
+                    varas_unicas = processed_df['vara'].nunique() if 'vara' in processed_df.columns else 0
                     st.metric("Varas Federais", varas_unicas)
                 
                 # Gráficos principais
@@ -575,6 +651,11 @@ def main():
             with tab3:
                 st.markdown("### 🔍 Filtros Avançados")
                 
+                # Garantir que as colunas de filtro existam no processed_df
+                if 'servidor' not in processed_df.columns:
+                    st.error("Não foi possível processar a coluna de Servidor ('Etiquetas'/'tagsProcessoList'). Os filtros podem estar incompletos.")
+                    return
+
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -593,13 +674,13 @@ def main():
                 with col2:
                     polo_passivo_filter = st.multiselect(
                         "Filtrar por Polo Passivo",
-                        options=sorted(processed_df['poloPassivo'].unique()),
+                        options=sorted(processed_df['POLO_PASSIVO'].unique()),
                         default=None
                     )
                     
                     assunto_filter = st.multiselect(
                         "Filtrar por Assunto",
-                        options=sorted(processed_df['assuntoPrincipal'].dropna().unique()),
+                        options=sorted(processed_df['ASSUNTO_PRINCIPAL'].dropna().unique()),
                         default=None
                     )
                 
@@ -623,11 +704,11 @@ def main():
                     filtros_aplicados.append(f"Mês: {', '.join(map(str, mes_filter))}")
                 
                 if polo_passivo_filter:
-                    filtered_df = filtered_df[filtered_df['poloPassivo'].isin(polo_passivo_filter)]
+                    filtered_df = filtered_df[filtered_df['POLO_PASSIVO'].isin(polo_passivo_filter)]
                     filtros_aplicados.append(f"Polo Passivo: {', '.join(polo_passivo_filter)}")
                 
                 if assunto_filter:
-                    filtered_df = filtered_df[filtered_df['assuntoPrincipal'].isin(assunto_filter)]
+                    filtered_df = filtered_df[filtered_df['ASSUNTO_PRINCIPAL'].isin(assunto_filter)]
                     filtros_aplicados.append(f"Assunto: {', '.join(assunto_filter)}")
                 
                 if vara_filter:
@@ -640,16 +721,21 @@ def main():
                 
                 if len(filtered_df) > 0:
                     # Exibir dados filtrados
+                    # Usando os nomes padronizados e os nomes de colunas criados ('servidor', 'vara', etc.)
                     colunas_filtro = [
-                        'numeroProcesso', 'poloAtivo', 'poloPassivo', 'data_chegada_formatada',
-                        'mes', 'dia', 'servidor', 'vara', 'assuntoPrincipal'
+                        'NUMERO_PROCESSO', 'POLO_ATIVO', 'POLO_PASSIVO', 'data_chegada_formatada',
+                        'mes', 'dia', 'servidor', 'vara', 'ASSUNTO_PRINCIPAL'
                     ]
                     
-                    display_filtered = filtered_df[colunas_filtro].copy()
+                    # Filtra apenas colunas que realmente existem após o processamento
+                    colunas_existentes = [col for col in colunas_filtro if col in filtered_df.columns]
+                    display_filtered = filtered_df[colunas_existentes].copy()
+                    
+                    # Renomeia para exibição no Streamlit e para o PDF
                     display_filtered.columns = [
                         'Nº Processo', 'Polo Ativo', 'Polo Passivo', 'Data Chegada',
                         'Mês', 'Dia', 'Servidor', 'Vara', 'Assunto Principal'
-                    ]
+                    ][:len(display_filtered.columns)]
                     
                     st.dataframe(display_filtered, use_container_width=True)
                     
@@ -672,16 +758,18 @@ def main():
                 
                 else:
                     st.warning("Nenhum processo encontrado com os filtros aplicados.")
-        
+            
+        except UnicodeDecodeError:
+            st.error("Erro de codificação. Certifique-se de que o arquivo está em formato CSV delimitado por ponto e vírgula (;) e com codificação UTF-8 ou Latin-1.")
         except Exception as e:
-            st.error(f"❌ Erro ao processar o arquivo: {str(e)}")
+            st.error(f"❌ Ocorreu um erro ao processar o arquivo. Verifique se todas as colunas essenciais estão presentes. Detalhes: {e}")
     
     else:
         # Tela inicial quando não há arquivo
         st.markdown("""
         <div class="upload-section">
             <h3>👋 Bem-vindo ao Sistema de Gestão de Processos Judiciais</h3>
-            <p>Faça o upload do arquivo CSV exportado do PJE para começar a análise.</p>
+            <p>Faça o upload do arquivo CSV exportado do PJE para começar a análise. Funciona com formatos de painel variados!</p>
         </div>
         """, unsafe_allow_html=True)
 
