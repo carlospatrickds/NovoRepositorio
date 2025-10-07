@@ -189,17 +189,19 @@ def criar_grafico_pizza_com_legenda(dados, titulo):
 def criar_relatorio_pdf(df_filtrado, filtros_aplicados):
     """Cria relatório PDF com os dados filtrados"""
     
-    pdf = FPDF()
-    pdf.add_page()
+    class PDF(FPDF):
+        def header(self):
+            # Cabeçalho
+            self.set_font('Arial', 'B', 16)
+            self.cell(0, 10, 'PODER JUDICIÁRIO', 0, 1, 'C')
+            self.set_font('Arial', 'B', 14)
+            self.cell(0, 10, 'JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS', 0, 1, 'C')
+            self.set_font('Arial', 'B', 12)
+            self.cell(0, 10, 'PLANILHA DE CONTROLE DE PROCESSOS - PJE2X', 0, 1, 'C')
+            self.ln(5)
     
-    # Cabeçalho
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, 'PODER JUDICIÁRIO', 0, 1, 'C')
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, 'JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS', 0, 1, 'C')
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, 'PLANILHA DE CONTROLE DE PROCESSOS - PJE2X', 0, 1, 'C')
-    pdf.ln(5)
+    pdf = PDF()
+    pdf.add_page()
     
     # Descrição do relatório
     pdf.set_font('Arial', 'B', 12)
@@ -213,9 +215,9 @@ def criar_relatorio_pdf(df_filtrado, filtros_aplicados):
     pdf.ln(10)
     
     # Tabela de processos
-    pdf.set_font('Arial', 'B', 10)
-    colunas = ['Nº Processo', 'Polo Ativo', 'Data Chegada', 'Servidor', 'Assunto']
-    larguras = [40, 50, 25, 35, 40]
+    pdf.set_font('Arial', 'B', 9)
+    colunas = ['Nº Processo', 'Polo Ativo', 'Data', 'Servidor', 'Assunto']
+    larguras = [35, 45, 20, 30, 60]
     
     # Cabeçalho da tabela
     for i, coluna in enumerate(colunas):
@@ -223,29 +225,40 @@ def criar_relatorio_pdf(df_filtrado, filtros_aplicados):
     pdf.ln()
     
     # Dados da tabela
-    pdf.set_font('Arial', '', 8)
-    for _, row in df_filtrado.head(100).iterrows():  # Limitar a 100 registros no PDF
-        pdf.cell(larguras[0], 8, str(row['Nº Processo'])[:15], 1)
-        pdf.cell(larguras[1], 8, str(row['Polo Ativo'])[:25], 1)
-        pdf.cell(larguras[2], 8, str(row['Data Chegada']), 1)
-        pdf.cell(larguras[3], 8, str(row['Servidor'])[:15], 1)
-        pdf.cell(larguras[4], 8, str(row['Assunto Principal'])[:30], 1)
+    pdf.set_font('Arial', '', 7)
+    for _, row in df_filtrado.head(50).iterrows():  # Limitar a 50 registros no PDF
+        # Tratar valores NaN
+        n_processo = str(row['Nº Processo']) if pd.notna(row['Nº Processo']) else ''
+        polo_ativo = str(row['Polo Ativo']) if pd.notna(row['Polo Ativo']) else ''
+        data_chegada = str(row['Data Chegada']) if pd.notna(row['Data Chegada']) else ''
+        servidor = str(row['Servidor']) if pd.notna(row['Servidor']) else ''
+        assunto = str(row['Assunto Principal']) if pd.notna(row['Assunto Principal']) else ''
+        
+        pdf.cell(larguras[0], 8, n_processo[:20], 1)
+        pdf.cell(larguras[1], 8, polo_ativo[:25], 1)
+        pdf.cell(larguras[2], 8, data_chegada[:10], 1)
+        pdf.cell(larguras[3], 8, servidor[:15], 1)
+        pdf.cell(larguras[4], 8, assunto[:40], 1)
         pdf.ln()
     
-    # Se houver mais de 100 registros, avisar
-    if len(df_filtrado) > 100:
+    # Se houver mais de 50 registros, avisar
+    if len(df_filtrado) > 50:
         pdf.ln(5)
         pdf.set_font('Arial', 'I', 8)
-        pdf.cell(0, 8, f'* Mostrando os primeiros 100 de {len(df_filtrado)} processos', 0, 1)
+        pdf.cell(0, 8, f'* Mostrando os primeiros 50 de {len(df_filtrado)} processos', 0, 1)
     
     return pdf
 
 def gerar_link_download_pdf(pdf, nome_arquivo):
     """Gera link de download para o PDF"""
-    pdf_output = pdf.output(dest='S').encode('latin1')
-    b64 = base64.b64encode(pdf_output).decode()
-    href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_arquivo}">📄 Baixar Relatório PDF</a>'
-    return href
+    try:
+        pdf_output = pdf.output()
+        b64 = base64.b64encode(pdf_output).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_arquivo}">📄 Baixar Relatório PDF</a>'
+        return href
+    except Exception as e:
+        st.error(f"Erro ao gerar PDF: {e}")
+        return ""
 
 def main():
     # Header
@@ -388,16 +401,6 @@ def main():
                     'Mês', 'Dia', 'Servidor', 'Vara', 'Assunto Principal'
                 ]
                 
-                # Configuração para mostrar texto completo nos assuntos
-                st.markdown("""
-                <style>
-                    .assunto-completo {
-                        white-space: normal !important;
-                        line-height: 1.4;
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-                
                 # Paginação
                 page_size = 100
                 total_pages = max(1, len(display_df) // page_size + (1 if len(display_df) % page_size else 0))
@@ -413,7 +416,7 @@ def main():
                 start_idx = (page_number - 1) * page_size
                 end_idx = start_idx + page_size
                 
-                # Exibir tabela com texto completo nos assuntos
+                # Exibir tabela
                 st.dataframe(
                     display_df.iloc[start_idx:end_idx],
                     use_container_width=True,
@@ -542,10 +545,16 @@ def main():
                     
                     if st.button("🖨️ Gerar Relatório PDF com Filtros Atuais"):
                         with st.spinner("Gerando relatório PDF..."):
-                            pdf = criar_relatorio_pdf(display_filtered, filtros_texto)
-                            nome_arquivo = f"relatorio_processos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                            href = gerar_link_download_pdf(pdf, nome_arquivo)
-                            st.markdown(href, unsafe_allow_html=True)
+                            try:
+                                pdf = criar_relatorio_pdf(display_filtered, filtros_texto)
+                                nome_arquivo = f"relatorio_processos_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                                href = gerar_link_download_pdf(pdf, nome_arquivo)
+                                if href:
+                                    st.markdown(href, unsafe_allow_html=True)
+                                else:
+                                    st.error("Erro ao gerar o relatório PDF")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar PDF: {e}")
                 
                 else:
                     st.warning("Nenhum processo encontrado com os filtros aplicados.")
