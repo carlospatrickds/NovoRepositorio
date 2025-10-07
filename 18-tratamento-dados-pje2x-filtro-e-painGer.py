@@ -1,689 +1,151 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timezone, timedelta
-import io
-import altair as alt
-from fpdf import FPDF
-import base64
 
-# Configuração da página
+# --- 1. Mapeamento e Funções de Processamento de Dados ---
+
+# Mapeamento de colunas: Novo Nome (Padrão) -> Lista de Nomes Possíveis nos CSVs
+COLUNA_MAP = {
+    'NUMERO_PROCESSO': ['Número do Processo', 'numeroProcesso'],
+    'POLO_ATIVO': ['Polo Ativo', 'poloAtivo'],
+    'POLO_PASSIVO': ['Polo Passivo', 'poloPassivo'],
+    'ORGAO_JULGADOR': ['Órgão Julgador', 'orgaoJulgador'],
+    'ASSUNTO': ['Assunto', 'assuntoPrincipal'],
+    'TAREFA': ['Tarefa', 'nomeTarefa'],
+    'DIAS': ['Dias'],  # Coluna 'Dias' do primeiro arquivo
+    'DATA_CHEGADA': ['Data Último Movimento', 'dataChegada'] # Para calcular 'DIAS' no segundo arquivo
+}
+
+def padronizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
+    """Padroniza os nomes das colunas e calcula 'DIAS' se necessário."""
+    
+    colunas_padronizadas = {}
+    for padrao, possiveis in COLUNA_MAP.items():
+        # Encontra o nome da coluna que existe no arquivo atual
+        coluna_encontrada = next((col for col in possiveis if col in df.columns), None)
+        
+        if coluna_encontrada:
+            colunas_padronizadas[coluna_encontrada] = padrao
+
+    # Renomeia as colunas do DataFrame
+    df.rename(columns=colunas_padronizadas, inplace=True)
+    
+    # Adiciona a coluna 'DIAS' se não existir, mas tiver 'DATA_CHEGADA'
+    if 'DATA_CHEGADA' in df.columns and 'DIAS' not in df.columns:
+        st.info("Calculando a coluna 'DIAS' a partir de 'DATA_CHEGADA'...")
+        try:
+            # Converte a data de chegada para datetime. 
+            # A data pode vir com horário (CSV do PJE+R) ou ser apenas a data (modelotester)
+            # Tentativa 1: Modelo PJE+R com timestamp no final
+            df['DATA_REF'] = df['DATA_CHEGADA'].astype(str).str.split(',').str[0]
+            
+            # Tentativa de conversão de data, pode falhar em diferentes formatos
+            df['DATA_REF'] = pd.to_datetime(df['DATA_REF'], format='%d/%m/%Y', errors='coerce')
+
+            # Se a conversão acima falhar, tentar converter o timestamp do PJE+R 
+            # (Exemplo: 1750190530868 para o 1º CSV)
+            if df['DATA_REF'].isnull().all() and 'Data Último Movimento' in colunas_padronizadas.keys():
+                 # Se for o timestamp do primeiro arquivo: 
+                 # O valor na coluna "Data Último Movimento" do primeiro arquivo (Processos_Painel_Gerencial_PJE+R_07-10-2025_14-51.csv)
+                 # é um timestamp Unix com milissegundos.
+                df['DATA_REF'] = pd.to_datetime(df['DATA_CHEGADA'], unit='ms', errors='coerce')
+
+            # Define a data de referência como a data de extração original (07/10/2025)
+            data_referencia = pd.to_datetime('2025-10-07')
+            
+            # Calcula a diferença em dias
+            df['DIAS'] = (data_referencia - df['DATA_REF']).dt.days
+            
+            # Limpa colunas temporárias
+            df.drop(columns=['DATA_REF'], inplace=True)
+            
+        except Exception as e:
+            st.error(f"Erro ao calcular a coluna 'DIAS' a partir da data. Verifique o formato da data no seu arquivo. Erro: {e}")
+            df['DIAS'] = np.nan
+    
+    # Converte 'DIAS' para numérico, tratando erros e valores vazios
+    if 'DIAS' in df.columns:
+        df['DIAS'] = pd.to_numeric(df['DIAS'], errors='coerce')
+        df['DIAS'] = df['DIAS'].fillna(0).astype(int) # Preenche NaNs com 0 para evitar erros no Streamlit
+
+    return df
+
+def executar_analises(df: pd.DataFrame):
+    """Executa e exibe as análises solicitadas."""
+    st.header("Resultados das Análises:")
+    
+    # --- Análise 1: Contagem de Processos por Órgão Julgador ---
+    if 'ORGAO_JULGADOR' in df.columns:
+        st.subheader("1. Contagem de Processos por Órgão Julgador")
+        contagem_orgao = df['ORGAO_JULGADOR'].value_counts().reset_index()
+        contagem_orgao.columns = ['Órgão Julgador', 'Total de Processos']
+        st.dataframe(contagem_orgao, use_container_width=True)
+    else:
+        st.warning("Coluna 'Órgão Julgador' não encontrada para esta análise.")
+
+    # --- Análise 2: Média de Dias na Tarefa Específica ---
+    tarefa_alvo = '[JEF] Cálculo - Elaborar'
+    if 'DIAS' in df.columns and 'TAREFA' in df.columns:
+        st.subheader(f"2. Média de Dias na Tarefa: **{tarefa_alvo}**")
+        
+        # Filtra e calcula a média apenas se houver dados
+        df_calculo = df[df['TAREFA'] == tarefa_alvo]
+        if not df_calculo.empty:
+            media_dias = df_calculo['DIAS'].mean()
+            st.metric(label="Média de Dias (Processos na Tarefa)", value=f"{media_dias:,.2f} dias")
+            
+            # Tabela de suporte para a média
+            st.write(f"Detalhe: {df_calculo.shape[0]} processo(s) encontrado(s) na tarefa.")
+        else:
+            st.info(f"Nenhum processo encontrado para a tarefa '{tarefa_alvo}' no arquivo.")
+    else:
+        st.warning("Colunas 'DIAS' ou 'TAREFA' não encontradas para esta análise.")
+
+    # --- Análise 3: Top 5 Assuntos Mais Comuns ---
+    if 'ASSUNTO' in df.columns:
+        st.subheader("3. Top 5 Assuntos Mais Comuns")
+        top_assuntos = df['ASSUNTO'].value_counts().nlargest(5).reset_index()
+        top_assuntos.columns = ['Assunto', 'Total de Processos']
+        st.dataframe(top_assuntos, use_container_width=True)
+    else:
+        st.warning("Coluna 'Assunto' não encontrada para esta análise.")
+
+# --- 2. Interface Streamlit ---
+
 st.set_page_config(
-    page_title="Gestão de Processos Judiciais",
-    page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Analisador de Painel de Processos Unificado",
+    layout="wide"
 )
 
-# CSS customizado
-st.markdown("""
-<style>
-    .main-header {
-        text-align: center;
-        padding: 1rem 0;
-        border-bottom: 2px solid #e0e0e0;
-        margin-bottom: 2rem;
-    }
-    .stat-card {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #007bff;
-        margin-bottom: 1rem;
-    }
-    .upload-section {
-        border: 2px dashed #dee2e6;
-        border-radius: 0.5rem;
-        padding: 2rem;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .assunto-completo {
-        white-space: normal !important;
-        max-width: 300px;
-    }
-</style>
-""", unsafe_allow_html=True)
+st.title("📊 Analisador de Painel de Processos (PJE+R)")
+st.markdown("Este aplicativo analisa automaticamente seus arquivos CSV do painel gerencial, padronizando os cabeçalhos de colunas diferentes.")
 
-def get_local_time():
-    """Obtém o horário local do Brasil (UTC-3)"""
-    utc_now = datetime.now(timezone.utc)
-    brasil_tz = timezone(timedelta(hours=-3))
-    return utc_now.astimezone(brasil_tz)
+# Seção de upload de arquivo
+uploaded_file = st.file_uploader(
+    "**Escolha o seu arquivo CSV (Delimitado por ';')**", 
+    type=['csv']
+)
 
-def processar_dados(df):
-    """Processa os dados do CSV similar à planilha original"""
-    
-    # Criar cópia para não modificar o original
-    processed_df = df.copy()
-    
-    # Processar tags - separar a coluna tagsProcessoList
-    def extrair_servidor(tags):
-        if pd.isna(tags):
-            return "Sem etiqueta"
-        tags_list = str(tags).split(', ')
-        for tag in tags_list:
-            if 'Servidor' in tag or 'Supervisão' in tag:
-                return tag
-        return "Não atribuído"
-    
-    def extrair_vara(tags):
-        if pd.isna(tags):
-            return "Vara não identificada"
-        tags_list = str(tags).split(', ')
-        for tag in tags_list:
-            if 'Vara Federal' in tag:
-                return tag
-        return "Vara não identificada"
-    
-    def extrair_data_chegada(data_str):
-        """Extrai data de chegada para ordenação cronológica"""
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            return datetime.strptime(data_part, '%d/%m/%Y')
-        except:
-            return None
-    
-    def extrair_mes_data(data_str):
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            data_obj = datetime.strptime(data_part, '%d/%m/%Y')
-            return data_obj.month
-        except:
-            return None
-    
-    def extrair_dia_data(data_str):
-        if pd.isna(data_str):
-            return None
-        try:
-            data_part = str(data_str).split(',')[0].strip()
-            data_obj = datetime.strptime(data_part, '%d/%m/%Y')
-            return data_obj.day
-        except:
-            return None
-    
-    # Aplicar processamento
-    processed_df['servidor'] = processed_df['tagsProcessoList'].apply(extrair_servidor)
-    processed_df['vara'] = processed_df['tagsProcessoList'].apply(extrair_vara)
-    processed_df['data_chegada_obj'] = processed_df['dataChegada'].apply(extrair_data_chegada)
-    processed_df['mes'] = processed_df['dataChegada'].apply(extrair_mes_data)
-    processed_df['dia'] = processed_df['dataChegada'].apply(extrair_dia_data)
-    
-    # Formatar data de chegada (apenas data)
-    processed_df['data_chegada_formatada'] = processed_df['dataChegada'].apply(
-        lambda x: str(x).split(',')[0] if pd.notna(x) else ''
-    )
-    
-    # Ordenar por data de chegada (mais recente primeiro)
-    processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
-    
-    return processed_df
-
-def criar_estatisticas(df):
-    """Cria estatísticas similares à planilha dados_individuais"""
-    
-    stats = {}
-    
-    # Estatísticas por Polo Passivo (ordenado do maior para o menor)
-    polo_passivo_stats = df['poloPassivo'].value_counts().head(10)
-    stats['polo_passivo'] = polo_passivo_stats
-    
-    # Estatísticas por Mês
-    mes_stats = df['mes'].value_counts().sort_index()
-    stats['mes'] = mes_stats
-    
-    # Estatísticas por Servidor
-    servidor_stats = df['servidor'].value_counts()
-    stats['servidor'] = servidor_stats
-    
-    # Estatísticas por Vara
-    vara_stats = df['vara'].value_counts().head(10)
-    stats['vara'] = vara_stats
-    
-    # Estatísticas por Assunto
-    assunto_stats = df['assuntoPrincipal'].value_counts().head(10)
-    stats['assunto'] = assunto_stats
-    
-    return stats
-
-def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
-    """Cria gráfico de barras usando Altair"""
-    df_plot = pd.DataFrame({
-        eixo_x: dados.index,
-        eixo_y: dados.values
-    })
-    
-    chart = alt.Chart(df_plot).mark_bar().encode(
-        x=alt.X(f'{eixo_x}:N', title=eixo_x, axis=alt.Axis(labelAngle=-45), sort='-y'),
-        y=alt.Y(f'{eixo_y}:Q', title=eixo_y),
-        tooltip=[eixo_x, eixo_y]
-    ).properties(
-        title=titulo,
-        width=600,
-        height=400
-    )
-    
-    return chart
-
-def criar_grafico_pizza_com_legenda(dados, titulo):
-    """Cria gráfico de pizza com legenda e valores"""
-    df_plot = pd.DataFrame({
-        'categoria': dados.index,
-        'valor': dados.values,
-        'percentual': (dados.values / dados.values.sum() * 100).round(1)
-    })
-    
-    # Criar labels com valores
-    df_plot['label'] = df_plot['categoria'] + ' (' + df_plot['valor'].astype(str) + ' - ' + df_plot['percentual'].astype(str) + '%)'
-    
-    chart = alt.Chart(df_plot).mark_arc().encode(
-        theta=alt.Theta(field="valor", type="quantitative"),
-        color=alt.Color(field="label", type="nominal", legend=alt.Legend(title="Servidores")),
-        tooltip=['categoria', 'valor', 'percentual']
-    ).properties(
-        title=titulo,
-        width=500,
-        height=400
-    )
-    
-    return chart
-
-def criar_relatorio_visao_geral(stats, total_processos):
-    """Cria relatório PDF para a aba Visão Geral"""
-    
-    class PDF(FPDF):
-        def header(self):
-            # Cabeçalho
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 10, 'PODER JUDICIÁRIO', 0, 1, 'C')
-            self.set_font('Arial', 'B', 14)
-            self.cell(0, 10, 'JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS', 0, 1, 'C')
-            self.set_font('Arial', 'B', 12)
-            self.cell(0, 10, 'PLANILHA DE CONTROLE DE PROCESSOS - PJE2X', 0, 1, 'C')
-            self.ln(5)
-    
-    pdf = PDF()
-    pdf.add_page()
-    
-    # Título do relatório
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, 'RELATÓRIO - VISÃO GERAL', 0, 1, 'C')
-    pdf.ln(5)
-    
-    # Informações gerais
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'INFORMAÇÕES GERAIS', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 6, f'Total de Processos: {total_processos}', 0, 1)
-    pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
-    pdf.ln(10)
-    
-    # Estatísticas por Polo Passivo
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'DISTRIBUIÇÃO POR POLO PASSIVO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for polo, quantidade in stats['polo_passivo'].items():
-        pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Mês
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'DISTRIBUIÇÃO POR MÊS', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for mes, quantidade in stats['mes'].items():
-        pdf.cell(0, 6, f'Mês {mes}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Servidor
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'DISTRIBUIÇÃO POR SERVIDOR', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for servidor, quantidade in stats['servidor'].items():
-        pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Assunto
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'PRINCIPAIS ASSUNTOS (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for assunto, quantidade in stats['assunto'].items():
-        pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
-    
-    # Data e hora no final
-    pdf.ln(10)
-    pdf.set_font('Arial', 'I', 8)
-    pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
-    
-    return pdf
-
-def criar_relatorio_estatisticas(stats):
-    """Cria relatório PDF para a aba Estatísticas"""
-    
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 10, 'PODER JUDICIÁRIO', 0, 1, 'C')
-            self.set_font('Arial', 'B', 14)
-            self.cell(0, 10, 'JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS', 0, 1, 'C')
-            self.set_font('Arial', 'B', 12)
-            self.cell(0, 10, 'PLANILHA DE CONTROLE DE PROCESSOS - PJE2X', 0, 1, 'C')
-            self.ln(5)
-    
-    pdf = PDF()
-    pdf.add_page()
-    
-    # Título do relatório
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, 'RELATÓRIO - ESTATÍSTICAS DETALHADAS', 0, 1, 'C')
-    pdf.ln(5)
-    
-    # Informações gerais
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
-    pdf.ln(10)
-    
-    # Estatísticas por Polo Passivo
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR POLO PASSIVO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for polo, quantidade in stats['polo_passivo'].items():
-        pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Mês
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR MÊS', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for mes, quantidade in stats['mes'].items():
-        pdf.cell(0, 6, f'Mês {mes}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Servidor
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR SERVIDOR', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for servidor, quantidade in stats['servidor'].items():
-        pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Vara
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR VARA (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for vara, quantidade in stats['vara'].items():
-        pdf.cell(0, 6, f'{vara}: {quantidade}', 0, 1)
-    pdf.ln(5)
-    
-    # Estatísticas por Assunto
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR ASSUNTO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for assunto, quantidade in stats['assunto'].items():
-        pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
-    
-    # Data e hora no final
-    pdf.ln(10)
-    pdf.set_font('Arial', 'I', 8)
-    pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
-    
-    return pdf
-
-def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
-    """Cria relatório PDF para a aba Filtros Avançados"""
-    
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 10, 'PODER JUDICIÁRIO', 0, 1, 'C')
-            self.set_font('Arial', 'B', 14)
-            self.cell(0, 10, 'JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS', 0, 1, 'C')
-            self.set_font('Arial', 'B', 12)
-            self.cell(0, 10, 'PLANILHA DE CONTROLE DE PROCESSOS - PJE2X', 0, 1, 'C')
-            self.ln(5)
-    
-    pdf = PDF()
-    pdf.add_page()
-    
-    # Título do relatório
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, 'RELATÓRIO - FILTROS APLICADOS', 0, 1, 'C')
-    pdf.ln(5)
-    
-    # Informações dos filtros
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'FILTROS APLICADOS:', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 6, filtros_aplicados, 0, 1)
-    pdf.ln(5)
-    
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 6, f'Total de processos filtrados: {len(df_filtrado)}', 0, 1)
-    pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
-    pdf.ln(10)
-    
-    # Tabela de processos - MOSTRAR TODOS OS PROCESSOS
-    if len(df_filtrado) > 0:
-        pdf.set_font('Arial', 'B', 9)
-        colunas = ['Nº Processo', 'Polo Ativo', 'Data', 'Servidor', 'Assunto']
-        larguras = [35, 45, 20, 30, 60]
-        
-        # Cabeçalho da tabela
-        for i, coluna in enumerate(colunas):
-            pdf.cell(larguras[i], 10, coluna, 1, 0, 'C')
-        pdf.ln()
-        
-        # Dados da tabela - TODOS os processos filtrados
-        pdf.set_font('Arial', '', 7)
-        for _, row in df_filtrado.iterrows():
-            n_processo = str(row['Nº Processo']) if pd.notna(row['Nº Processo']) else ''
-            polo_ativo = str(row['Polo Ativo']) if pd.notna(row['Polo Ativo']) else ''
-            data_chegada = str(row['Data Chegada']) if pd.notna(row['Data Chegada']) else ''
-            servidor = str(row['Servidor']) if pd.notna(row['Servidor']) else ''
-            assunto = str(row['Assunto Principal']) if pd.notna(row['Assunto Principal']) else ''
-            
-            pdf.cell(larguras[0], 8, n_processo[:20], 1)
-            pdf.cell(larguras[1], 8, polo_ativo[:25], 1)
-            pdf.cell(larguras[2], 8, data_chegada[:10], 1)
-            pdf.cell(larguras[3], 8, servidor[:15], 1)
-            pdf.cell(larguras[4], 8, assunto[:40], 1)
-            pdf.ln()
-    
-    # Data e hora no final
-    pdf.ln(10)
-    pdf.set_font('Arial', 'I', 8)
-    pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
-    
-    return pdf
-
-def gerar_link_download_pdf(pdf, nome_arquivo):
-    """Gera link de download para o PDF"""
+if uploaded_file is not None:
     try:
-        pdf_output = pdf.output()
-        b64 = base64.b64encode(pdf_output).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_arquivo}">📄 Baixar Relatório PDF</a>'
-        return href
-    except Exception as e:
-        st.error(f"Erro ao gerar PDF: {e}")
-        return ""
-
-def main():
-    # Header
-    st.markdown("""
-    <div class="main-header">
-        <h1>PODER JUDICIÁRIO</h1>
-        <h3>JUSTIÇA FEDERAL EM PERNAMBUCO - JUIZADOS ESPECIAIS FEDERAIS</h3>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Upload de arquivo
-    st.markdown("### 📁 Upload do Arquivo CSV do PJE")
-    
-    uploaded_file = st.file_uploader(
-        "Selecione o arquivo CSV exportado do PJE",
-        type=['csv'],
-        help="Arquivo CSV com até 5.000 linhas, separado por ponto e vírgula"
-    )
-    
-    if uploaded_file is not None:
-        try:
-            # Ler arquivo CSV
-            df = pd.read_csv(uploaded_file, delimiter=';', encoding='utf-8')
-            
-            # Mostrar informações básicas do arquivo
-            st.success(f"✅ Arquivo carregado com sucesso! {len(df)} processos encontrados.")
-            
-            # Processar dados
-            with st.spinner('Processando dados...'):
-                processed_df = processar_dados(df)
-                stats = criar_estatisticas(processed_df)
-            
-            # Abas para organização (removida a aba Lista de Processos)
-            tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "📈 Estatísticas", "🔍 Filtros Avançados"])
-            
-            with tab1:
-                st.markdown("### 📊 Dashboard - Visão Geral")
-                
-                # Botão para gerar relatório
-                col1, col2, col3, col4 = st.columns(4)
-                with col4:
-                    if st.button("📄 Gerar Relatório - Visão Geral", key="relatorio_visao"):
-                        with st.spinner("Gerando relatório..."):
-                            pdf = criar_relatorio_visao_geral(stats, len(processed_df))
-                            nome_arquivo = f"relatorio_visao_geral_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
-                            href = gerar_link_download_pdf(pdf, nome_arquivo)
-                            if href:
-                                st.markdown(href, unsafe_allow_html=True)
-                
-                # Métricas principais
-                with col1:
-                    st.metric("Total de Processos", len(processed_df))
-                
-                with col2:
-                    servidores_unicos = processed_df['servidor'].nunique()
-                    st.metric("Servidores Envolvidos", servidores_unicos)
-                
-                with col3:
-                    varas_unicas = processed_df['vara'].nunique()
-                    st.metric("Varas Federais", varas_unicas)
-                
-                # Gráficos principais
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if not stats['polo_passivo'].empty:
-                        st.altair_chart(
-                            criar_grafico_barras(
-                                stats['polo_passivo'], 
-                                "Distribuição por Polo Passivo", 
-                                "Polo Passivo", 
-                                "Quantidade"
-                            ), 
-                            use_container_width=True
-                        )
-                    
-                    with st.expander("📊 Ver dados - Polo Passivo"):
-                        st.dataframe(stats['polo_passivo'])
-                
-                with col2:
-                    if not stats['mes'].empty:
-                        st.altair_chart(
-                            criar_grafico_barras(
-                                stats['mes'], 
-                                "Distribuição por Mês", 
-                                "Mês", 
-                                "Quantidade"
-                            ), 
-                            use_container_width=True
-                        )
-                    
-                    with st.expander("📊 Ver dados - Distribuição por Mês"):
-                        st.dataframe(stats['mes'])
-                
-                # Gráficos secundários
-                col3, col4 = st.columns(2)
-                
-                with col3:
-                    if not stats['servidor'].empty:
-                        st.altair_chart(
-                            criar_grafico_pizza_com_legenda(
-                                stats['servidor'],
-                                "Distribuição por Servidor"
-                            ),
-                            use_container_width=True
-                        )
-                    
-                    # NOVO: Expander para dados de Servidor
-                    with st.expander("📊 Ver dados - Distribuição por Servidor"):
-                        st.dataframe(stats['servidor'])
-                
-                with col4:
-                    if not stats['assunto'].empty:
-                        df_assunto = pd.DataFrame({
-                            'Assunto': stats['assunto'].index,
-                            'Quantidade': stats['assunto'].values
-                        })
-                        
-                        chart_assunto = alt.Chart(df_assunto).mark_bar().encode(
-                            x='Quantidade:Q',
-                            y=alt.Y('Assunto:N', sort='-x', title='Assunto'),
-                            tooltip=['Assunto', 'Quantidade']
-                        ).properties(
-                            title="Principais Assuntos",
-                            width=600,
-                            height=400
-                        )
-                        st.altair_chart(chart_assunto, use_container_width=True)
-                    
-                    # NOVO: Expander para dados de Assuntos
-                    with st.expander("📊 Ver dados - Principais Assuntos"):
-                        st.dataframe(stats['assunto'])
-            
-            with tab2:
-                st.markdown("### 📈 Estatísticas Detalhadas")
-                
-                # Botão para gerar relatório
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button("📄 Gerar Relatório - Estatísticas", key="relatorio_estatisticas"):
-                        with st.spinner("Gerando relatório..."):
-                            pdf = criar_relatorio_estatisticas(stats)
-                            nome_arquivo = f"relatorio_estatisticas_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
-                            href = gerar_link_download_pdf(pdf, nome_arquivo)
-                            if href:
-                                st.markdown(href, unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### Por Polo Passivo")
-                    st.dataframe(stats['polo_passivo'], use_container_width=True)
-                    
-                    st.markdown("#### Por Servidor")
-                    st.dataframe(stats['servidor'], use_container_width=True)
-                
-                with col2:
-                    st.markdown("#### Por Mês")
-                    st.dataframe(stats['mes'], use_container_width=True)
-                    
-                    st.markdown("#### Por Vara")
-                    st.dataframe(stats['vara'], use_container_width=True)
-            
-            with tab3:
-                st.markdown("### 🔍 Filtros Avançados")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    servidor_filter = st.multiselect(
-                        "Filtrar por Servidor",
-                        options=sorted(processed_df['servidor'].unique()),
-                        default=None
-                    )
-                    
-                    mes_filter = st.multiselect(
-                        "Filtrar por Mês",
-                        options=sorted(processed_df['mes'].dropna().unique()),
-                        default=None
-                    )
-                
-                with col2:
-                    polo_passivo_filter = st.multiselect(
-                        "Filtrar por Polo Passivo",
-                        options=sorted(processed_df['poloPassivo'].unique()),
-                        default=None
-                    )
-                    
-                    assunto_filter = st.multiselect(
-                        "Filtrar por Assunto",
-                        options=sorted(processed_df['assuntoPrincipal'].dropna().unique()),
-                        default=None
-                    )
-                
-                with col3:
-                    vara_filter = st.multiselect(
-                        "Filtrar por Vara",
-                        options=sorted(processed_df['vara'].unique()),
-                        default=None
-                    )
-                
-                # Aplicar filtros
-                filtered_df = processed_df.copy()
-                filtros_aplicados = []
-                
-                if servidor_filter:
-                    filtered_df = filtered_df[filtered_df['servidor'].isin(servidor_filter)]
-                    filtros_aplicados.append(f"Servidor: {', '.join(servidor_filter)}")
-                
-                if mes_filter:
-                    filtered_df = filtered_df[filtered_df['mes'].isin(mes_filter)]
-                    filtros_aplicados.append(f"Mês: {', '.join(map(str, mes_filter))}")
-                
-                if polo_passivo_filter:
-                    filtered_df = filtered_df[filtered_df['poloPassivo'].isin(polo_passivo_filter)]
-                    filtros_aplicados.append(f"Polo Passivo: {', '.join(polo_passivo_filter)}")
-                
-                if assunto_filter:
-                    filtered_df = filtered_df[filtered_df['assuntoPrincipal'].isin(assunto_filter)]
-                    filtros_aplicados.append(f"Assunto: {', '.join(assunto_filter)}")
-                
-                if vara_filter:
-                    filtered_df = filtered_df[filtered_df['vara'].isin(vara_filter)]
-                    filtros_aplicados.append(f"Vara: {', '.join(vara_filter)}")
-                
-                filtros_texto = " | ".join(filtros_aplicados) if filtros_aplicados else "Nenhum filtro aplicado"
-                
-                st.metric("Processos Filtrados", len(filtered_df))
-                
-                if len(filtered_df) > 0:
-                    # Exibir dados filtrados
-                    colunas_filtro = [
-                        'numeroProcesso', 'poloAtivo', 'poloPassivo', 'data_chegada_formatada',
-                        'mes', 'dia', 'servidor', 'vara', 'assuntoPrincipal'
-                    ]
-                    
-                    display_filtered = filtered_df[colunas_filtro].copy()
-                    display_filtered.columns = [
-                        'Nº Processo', 'Polo Ativo', 'Polo Passivo', 'Data Chegada',
-                        'Mês', 'Dia', 'Servidor', 'Vara', 'Assunto Principal'
-                    ]
-                    
-                    st.dataframe(display_filtered, use_container_width=True)
-                    
-                    # Botão para gerar relatório PDF
-                    st.markdown("---")
-                    st.markdown("### 📄 Gerar Relatório com Filtros")
-                    
-                    if st.button("🖨️ Gerar Relatório PDF com Filtros Atuais", key="relatorio_filtros"):
-                        with st.spinner("Gerando relatório..."):
-                            try:
-                                pdf = criar_relatorio_filtros(display_filtered, filtros_texto)
-                                nome_arquivo = f"relatorio_filtros_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
-                                href = gerar_link_download_pdf(pdf, nome_arquivo)
-                                if href:
-                                    st.markdown(href, unsafe_allow_html=True)
-                                else:
-                                    st.error("Erro ao gerar o relatório PDF")
-                            except Exception as e:
-                                st.error(f"Erro ao gerar PDF: {e}")
-                
-                else:
-                    st.warning("Nenhum processo encontrado com os filtros aplicados.")
+        # Carrega o arquivo, usando o delimitador correto (;)
+        df = pd.read_csv(uploaded_file, sep=';', encoding='utf-8')
         
-        except Exception as e:
-            st.error(f"❌ Erro ao processar o arquivo: {str(e)}")
-    
-    else:
-        # Tela inicial quando não há arquivo
-        st.markdown("""
-        <div class="upload-section">
-            <h3>👋 Bem-vindo ao Sistema de Gestão de Processos Judiciais</h3>
-            <p>Faça o upload do arquivo CSV exportado do PJE para começar a análise.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Exibe o cabeçalho para confirmação
+        st.subheader("Arquivo Carregado com Sucesso")
+        st.caption("Primeiras 5 linhas do seu arquivo:")
+        st.dataframe(df.head(), use_container_width=True)
 
-if __name__ == "__main__":
-    main()
+        # Processamento e análise
+        df_processado = padronizar_colunas(df.copy())
+        
+        # Garante que as colunas padronizadas existem antes de prosseguir
+        if any(col in df_processado.columns for col in COLUNA_MAP.keys()):
+            executar_analises(df_processado)
+        else:
+            st.error("Não foi possível identificar as colunas essenciais (Órgão Julgador, Tarefa, Assunto) no arquivo. Verifique o formato do cabeçalho.")
+
+    except UnicodeDecodeError:
+        st.error("Erro de codificação. Certifique-se de que o arquivo está em formato CSV delimitado por ponto e vírgula (;) e com codificação UTF-8 ou Latin-1.")
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao processar o arquivo. Detalhes: {e}")
