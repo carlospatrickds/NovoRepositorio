@@ -194,8 +194,6 @@ def criar_estatisticas(df):
     
     return stats
 
-# As funções de gráfico e relatório (PDF) não precisam ser alteradas, mas foram incluídas abaixo para manter a integridade do código completo.
-
 def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
     df_plot = pd.DataFrame({
         eixo_x: dados.index,
@@ -428,7 +426,16 @@ def gerar_link_download_pdf(pdf, nome_arquivo):
         return ""
         
 def gerar_csv_edicoes(edicoes_df):
-    """Gera o link de download para o CSV de edições."""
+    """
+    Gera o link de download para o CSV de edições.
+    *NOVO: Ordena o DataFrame pela coluna 'NOVA_ATRIBUICAO_SERVIDOR'.
+    """
+    
+    # --- ORDENAÇÃO POR SERVIDOR (NOVO) ---
+    if 'NOVA_ATRIBUICAO_SERVIDOR' in edicoes_df.columns:
+        edicoes_df = edicoes_df.sort_values(by='NOVA_ATRIBUICAO_SERVIDOR', ascending=True)
+    # ------------------------------------
+        
     csv_data = edicoes_df.to_csv(index=False, sep=';', encoding='utf-8-sig')
     b64 = base64.b64encode(csv_data.encode()).decode()
     nome_arquivo = f"edicoes_servidor_pje_{get_local_time().strftime('%Y%m%d_%H%M')}.csv"
@@ -753,7 +760,7 @@ def main():
                 servidores_disponiveis = sorted(processed_df['servidor'].unique())
                 servidores_para_atribuir = [s for s in servidores_disponiveis if s not in ["Sem etiqueta", "Não atribuído"]]
                 
-                # NOVO: Agrupar por Assunto Principal
+                # Agrupar por Assunto Principal
                 grouped_by_assunto = df_sem_etiqueta.groupby('ASSUNTO_PRINCIPAL')
                 
                 for assunto, group_df in grouped_by_assunto:
@@ -823,7 +830,13 @@ def main():
                     st.markdown(gerar_csv_edicoes(edicoes_df), unsafe_allow_html=True)
                     
                     with st.expander("Ver Edições Prontas"):
-                        st.dataframe(edicoes_df, use_container_width=True)
+                        # Exibe o dataframe ordenado para conferência
+                        if 'NOVA_ATRIBUICAO_SERVIDOR' in edicoes_df.columns:
+                            edicoes_df_display = edicoes_df.sort_values(by='NOVA_ATRIBUICAO_SERVIDOR', ascending=True)
+                        else:
+                            edicoes_df_display = edicoes_df
+                            
+                        st.dataframe(edicoes_df_display, use_container_width=True)
 
                 else:
                     st.info("Nenhuma edição temporária de servidor registrada ainda.")
