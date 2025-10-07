@@ -27,6 +27,9 @@ PyPDF2 #16092025
 workalendar
 
 
+plotly==5.15.0
+openpyxl==3.1.2
+
 # Observação:
 # Se algum script antigo usar a versão velha do fpdf (sem suporte a UTF-8),
 # atualize esses scripts para usar fpdf2, pois ambas têm a mesma interface: from fpdf import FPDF
