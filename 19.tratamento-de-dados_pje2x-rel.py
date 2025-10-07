@@ -127,14 +127,12 @@ def processar_dados(df):
                 return None
             data_str = str(data_str)
             
-            # Caso 1: Formato "DD/MM/YYYY, HH:MM:SS" (modelotester)
             try:
                 data_part = data_str.split(',')[0].strip()
                 return datetime.strptime(data_part, '%d/%m/%Y')
             except:
                 pass
             
-            # Caso 2: Formato Timestamp (Processos_Painel_Gerencial_PJE+R)
             try:
                 if len(data_str) > 10 and data_str.isdigit():
                     return pd.to_datetime(int(data_str), unit='ms').to_pydatetime()
@@ -152,7 +150,6 @@ def processar_dados(df):
         
         # Calcular coluna 'DIAS' se não existir
         if 'DIAS' not in processed_df.columns:
-            # st.info("Calculando coluna 'DIAS' a partir da data de chegada...") # REMOVIDO A PEDIDO
             data_referencia = pd.to_datetime('2025-10-07') 
             
             processed_df['DIAS'] = (data_referencia - processed_df['data_chegada_obj']).dt.days
@@ -197,10 +194,9 @@ def criar_estatisticas(df):
     
     return stats
 
-# ... (Funções criar_grafico_barras, criar_grafico_pizza_com_legenda, criar_relatorio_visao_geral, criar_relatorio_estatisticas, criar_relatorio_filtros, gerar_link_download_pdf, e gerar_csv_edicoes permanecem inalteradas, exceto a referência a esta função abaixo para clareza) ...
+# As funções de gráfico e relatório (PDF) não precisam ser alteradas, mas foram incluídas abaixo para manter a integridade do código completo.
 
 def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
-    # ... código ...
     df_plot = pd.DataFrame({
         eixo_x: dados.index,
         eixo_y: dados.values
@@ -219,7 +215,6 @@ def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
     return chart
 
 def criar_grafico_pizza_com_legenda(dados, titulo):
-    # ... código ...
     df_plot = pd.DataFrame({
         'categoria': dados.index,
         'valor': dados.values,
@@ -381,7 +376,7 @@ def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
     pdf.set_font('Arial', 'B', 12)
     pdf.cell(0, 8, 'FILTROS APLICADOS:', 0, 1)
     pdf.set_font('Arial', '', 10)
-    pdf.multi_cell(0, 5, filtros_aplicados) # Use multi_cell para quebra de linha
+    pdf.multi_cell(0, 5, filtros_aplicados)
     pdf.ln(5)
     
     pdf.set_font('Arial', '', 10)
@@ -452,7 +447,7 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # --- NOVO: LÓGICA DE PERSISTÊNCIA E UPLOAD ---
+    # --- LÓGICA DE PERSISTÊNCIA E UPLOAD ---
     
     processed_df = None
     uploaded_file = None
@@ -461,7 +456,6 @@ def main():
     if 'processed_data' in st.session_state and st.session_state['processed_data'] is not None:
         st.success("✅ Dados carregados da sessão anterior. Faça um novo upload para substituir.")
         processed_df = st.session_state['processed_data']
-        # Usamos uma flag para indicar que o processamento já ocorreu
         uploaded_file = 'DATA_LOADED' 
     
     # 2. Se não houver dados, exibir o uploader
@@ -489,7 +483,7 @@ def main():
                 # SALVAR NA SESSÃO para persistir no F5
                 st.session_state['processed_data'] = processed_df
                 
-            uploaded_file = 'DATA_LOADED' # Define a flag para entrar no bloco de exibição
+            uploaded_file = 'DATA_LOADED'
             
         except UnicodeDecodeError:
             st.error("Erro de codificação. Certifique-se de que o arquivo está em formato CSV delimitado por ponto e vírgula (;) e com codificação UTF-8 ou Latin-1.")
@@ -678,7 +672,7 @@ def main():
             filtered_df = processed_df.copy()
             filtros_aplicados = []
             
-            # Lógica de Filtragem (inalterada)
+            # Lógica de Filtragem
             if servidor_filter:
                 filtered_df = filtered_df[filtered_df['servidor'].isin(servidor_filter)]
                 filtros_aplicados.append(f"Servidor: {', '.join(servidor_filter)}")
@@ -742,7 +736,7 @@ def main():
             else:
                 st.warning("Nenhum processo encontrado com os filtros aplicados.")
                 
-            # --- SEÇÃO DE EDIÇÃO TEMPORÁRIA (MODIFICADA) ---
+            # --- SEÇÃO DE EDIÇÃO TEMPORÁRIA (AGRUPADA POR ASSUNTO) ---
             st.markdown("---")
             st.markdown("### ✍️ Edição Temporária de Servidor (Processos Sem Etiqueta)")
 
@@ -759,40 +753,43 @@ def main():
                 servidores_disponiveis = sorted(processed_df['servidor'].unique())
                 servidores_para_atribuir = [s for s in servidores_disponiveis if s not in ["Sem etiqueta", "Não atribuído"]]
                 
-                # Novo Layout de Edição (Sem coluna de "Atribuição Rápida")
+                # NOVO: Agrupar por Assunto Principal
+                grouped_by_assunto = df_sem_etiqueta.groupby('ASSUNTO_PRINCIPAL')
                 
-                for index, row in df_sem_etiqueta.iterrows():
-                    num_proc = row['NUMERO_PROCESSO']
-                    default_value = st.session_state['edicoes_servidor'].get(num_proc, '')
-                    
-                    polo_passivo = row.get('POLO_PASSIVO', 'N/D')
-                    assunto = row.get('ASSUNTO_PRINCIPAL', 'N/D')
-                    
-                    # Exibe Polo Passivo e Assunto (Polo Passivo em fonte ligeiramente menor)
-                    st.markdown(f"""
-                        <p style="font-size: 11px; margin: 0; padding: 0;">Réu: **{polo_passivo}**</p>
-                        <p style="font-size: 13px; margin: 0; padding: 0; margin-top: 5px;">Assunto: <b>{assunto}</b></p>
-                    """, unsafe_allow_html=True)
+                for assunto, group_df in grouped_by_assunto:
+                    # Usar um expander para cada assunto
+                    with st.expander(f"📚 **{assunto}** ({len(group_df)} processos)"):
+                        
+                        for index, row in group_df.iterrows():
+                            num_proc = row['NUMERO_PROCESSO']
+                            default_value = st.session_state['edicoes_servidor'].get(num_proc, '')
+                            
+                            polo_passivo = row.get('POLO_PASSIVO', 'N/D')
+                            
+                            # Exibe Polo Passivo (fonte menor) e Assunto
+                            st.markdown(f"""
+                                <p style="font-size: 11px; margin: 0; padding: 0;">Réu: **{polo_passivo}**</p>
+                                <p style="font-size: 13px; margin: 0; padding: 0; margin-top: 5px;">Processo: **{num_proc}** - Data Chegada: ({row.get('data_chegada_formatada', 'N/D')})</p>
+                            """, unsafe_allow_html=True)
 
-                    # Campo de seleção editável para cada processo
-                    initial_index = servidores_para_atribuir.index(default_value) + 1 if default_value in servidores_para_atribuir else 0
-                    
-                    novo_servidor = st.selectbox(
-                        f"**{num_proc}** - Data Chegada: ({row.get('data_chegada_formatada', 'N/D')})",
-                        options=[''] + servidores_para_atribuir,
-                        key=f"edit_{num_proc}",
-                        index=initial_index,
-                        label_visibility='collapsed' # Oculta o label acima do selectbox para usar o markdown customizado
-                    )
-                    
-                    # Atualiza o estado da sessão com a edição
-                    if novo_servidor:
-                        st.session_state['edicoes_servidor'][num_proc] = novo_servidor
-                    elif not novo_servidor and num_proc in st.session_state['edicoes_servidor']:
-                        # Remove a edição se o campo voltar para o vazio
-                        del st.session_state['edicoes_servidor'][num_proc]
-                    
-                    st.markdown("---") # Linha separadora entre processos
+                            # Campo de seleção editável para cada processo
+                            initial_index = servidores_para_atribuir.index(default_value) + 1 if default_value in servidores_para_atribuir else 0
+                            
+                            novo_servidor = st.selectbox(
+                                "Atribuir Servidor:", # Rótulo simplificado, visível se a edição for feita
+                                options=[''] + servidores_para_atribuir,
+                                key=f"edit_{num_proc}",
+                                index=initial_index,
+                                label_visibility='collapsed' # Oculta o label acima do selectbox
+                            )
+                            
+                            # Atualiza o estado da sessão com a edição
+                            if novo_servidor:
+                                st.session_state['edicoes_servidor'][num_proc] = novo_servidor
+                            elif not novo_servidor and num_proc in st.session_state['edicoes_servidor']:
+                                del st.session_state['edicoes_servidor'][num_proc]
+                            
+                            st.markdown("---") # Linha separadora entre processos
 
                 # 3. Gerar o CSV de Edições
                 
@@ -816,8 +813,8 @@ def main():
                             'DATA_CHEGADA': original_row.get('data_chegada_formatada', 'N/D'),
                             'ORGAO_JULGADOR_VARA': orgao_vara,
                             'NOVA_ATRIBUICAO_SERVIDOR': novo_servidor,
-                            'POLO_PASSIVO': original_row.get('POLO_PASSIVO', 'N/D'), # Adicionado
-                            'ASSUNTO': original_row.get('ASSUNTO_PRINCIPAL', 'N/D'), # Adicionado
+                            'POLO_PASSIVO': original_row.get('POLO_PASSIVO', 'N/D'),
+                            'ASSUNTO': original_row.get('ASSUNTO_PRINCIPAL', 'N/D'),
                             'OBSERVACAO': 'Atribuição Temporária Feita no Painel PJE2X'
                         })
                     
