@@ -509,13 +509,13 @@ def gerar_link_download_pdf(pdf, nome_arquivo):
         return ""
 
 def gerar_csv_atribuicoes(df_atribuicoes):
-    """Gera CSV com as atribuições de servidor"""
+    """Gera CSV com as atribuições de servidor - AGORA COM 4 COLUNAS"""
     if df_atribuicoes.empty:
         return None
     
-    # Criar DataFrame com colunas específicas
-    df_csv = df_atribuicoes[['NUMERO_PROCESSO', 'vara', 'servidor']].copy()
-    df_csv.columns = ['Número do Processo', 'Vara', 'Servidor Atribuído']
+    # Criar DataFrame com 4 colunas específicas
+    df_csv = df_atribuicoes[['NUMERO_PROCESSO', 'vara', 'orgao_julgador', 'servidor']].copy()
+    df_csv.columns = ['Número do Processo', 'Vara', 'Órgão Julgador', 'Servidor Atribuído']
     
     # Converter para CSV
     csv = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
@@ -695,8 +695,8 @@ def main():
                 st.markdown("### 🔍 Filtros Avançados")
                 
                 if 'servidor' in processed_df.columns:
-                    # Filtros
-                    col1, col2, col3 = st.columns(3)
+                    # FILTROS COMPLETOS - 5 OPÇÕES
+                    col1, col2 = st.columns(2)
                     
                     with col1:
                         servidores_filtro = st.multiselect(
@@ -704,15 +704,13 @@ def main():
                             options=sorted(processed_df['servidor'].unique()),
                             default=None
                         )
-                    
-                    with col2:
-                        varas_filtro = st.multiselect(
-                            "Filtrar por Vara:",
-                            options=sorted(processed_df['vara'].unique()),
+                        
+                        assunto_filtro = st.multiselect(
+                            "Filtrar por Assunto:",
+                            options=sorted(processed_df['ASSUNTO_PRINCIPAL'].dropna().unique()),
                             default=None
                         )
-                    
-                    with col3:
+                        
                         if 'mes' in processed_df.columns:
                             meses_filtro = st.multiselect(
                                 "Filtrar por Mês:",
@@ -722,6 +720,19 @@ def main():
                         else:
                             meses_filtro = []
                     
+                    with col2:
+                        varas_filtro = st.multiselect(
+                            "Filtrar por Vara:",
+                            options=sorted(processed_df['vara'].unique()),
+                            default=None
+                        )
+                        
+                        polo_passivo_filtro = st.multiselect(
+                            "Filtrar por Polo Passivo:",
+                            options=sorted(processed_df['POLO_PASSIVO'].dropna().unique()),
+                            default=None
+                        )
+                    
                     # Aplicar filtros
                     df_filtrado = processed_df.copy()
                     filtros_aplicados = "Filtros aplicados: "
@@ -730,13 +741,21 @@ def main():
                         df_filtrado = df_filtrado[df_filtrado['servidor'].isin(servidores_filtro)]
                         filtros_aplicados += f"Servidores: {', '.join(servidores_filtro)}; "
                     
-                    if varas_filtro:
-                        df_filtrado = df_filtrado[df_filtrado['vara'].isin(varas_filtro)]
-                        filtros_aplicados += f"Varas: {', '.join(varas_filtro)}; "
+                    if assunto_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['ASSUNTO_PRINCIPAL'].isin(assunto_filtro)]
+                        filtros_aplicados += f"Assuntos: {', '.join(assunto_filtro)}; "
                     
                     if meses_filtro:
                         df_filtrado = df_filtrado[df_filtrado['mes'].isin(meses_filtro)]
                         filtros_aplicados += f"Meses: {', '.join(map(str, meses_filtro))}; "
+                    
+                    if varas_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['vara'].isin(varas_filtro)]
+                        filtros_aplicados += f"Varas: {', '.join(varas_filtro)}; "
+                    
+                    if polo_passivo_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['POLO_PASSIVO'].isin(polo_passivo_filtro)]
+                        filtros_aplicados += f"Polo Passivo: {', '.join(polo_passivo_filtro)}; "
                     
                     # Mostrar resultados filtrados
                     st.markdown(f"**Processos encontrados:** {len(df_filtrado)}")
@@ -824,10 +843,15 @@ def main():
                             
                             # Vara - usar Órgão Julgador se não tiver etiqueta de vara
                             vara_atual = processo_info.get('vara', 'Vara não identificada')
-                            if vara_atual == "Vara não identificada" and 'ORGAO_JULGADOR' in processo_info:
-                                vara_atual = processo_info['ORGAO_JULGADOR']
+                            orgao_julgador = processo_info.get('ORGAO_JULGADOR', 'N/A')
                             
-                            st.markdown(f"**Vara:** {vara_atual}")
+                            if vara_atual == "Vara não identificada":
+                                vara_final = orgao_julgador
+                            else:
+                                vara_final = vara_atual
+                            
+                            st.markdown(f"**Vara:** {vara_final}")
+                            st.markdown(f"**Órgão Julgador:** {orgao_julgador}")
                             st.markdown(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
                             
                             # Seleção de servidor
@@ -846,13 +870,16 @@ def main():
                             if st.button("💾 Aplicar Atribuição", key="aplicar_edicao"):
                                 # Determinar a vara final (usar Órgão Julgador se não tiver vara)
                                 vara_final = processo_info.get('vara', 'Vara não identificada')
-                                if vara_final == "Vara não identificada" and 'ORGAO_JULGADOR' in processo_info:
-                                    vara_final = processo_info['ORGAO_JULGADOR']
+                                orgao_julgador = processo_info.get('ORGAO_JULGADOR', 'N/A')
+                                
+                                if vara_final == "Vara não identificada":
+                                    vara_final = orgao_julgador
                                 
                                 # Criar registro da atribuição
                                 atribuicao = {
                                     'NUMERO_PROCESSO': processo_info['NUMERO_PROCESSO'],
                                     'vara': vara_final,
+                                    'orgao_julgador': orgao_julgador,
                                     'servidor': novo_servidor,
                                     'data_atribuicao': get_local_time().strftime('%d/%m/%Y %H:%M'),
                                     'POLO_ATIVO': processo_info.get('POLO_ATIVO', ''),
@@ -880,10 +907,10 @@ def main():
                         
                         # Exibir processos atribuídos
                         df_exibicao_atribuidos = st.session_state.atribuicoes_servidores[[
-                            'NUMERO_PROCESSO', 'vara', 'servidor', 'data_atribuicao'
+                            'NUMERO_PROCESSO', 'vara', 'orgao_julgador', 'servidor', 'data_atribuicao'
                         ]].copy()
                         
-                        df_exibicao_atribuidos.columns = ['Nº Processo', 'Vara', 'Servidor', 'Data/Hora Atribuição']
+                        df_exibicao_atribuidos.columns = ['Nº Processo', 'Vara', 'Órgão Julgador', 'Servidor', 'Data/Hora Atribuição']
                         st.dataframe(df_exibicao_atribuidos, use_container_width=True)
                         
                         # Botão para download do CSV
@@ -895,7 +922,7 @@ def main():
                             b64 = base64.b64encode(csv_atribuicoes.encode()).decode()
                             href = f'<a href="data:file/csv;base64,{b64}" download="atribuicoes_servidores_{get_local_time().strftime("%Y%m%d_%H%M")}.csv">📊 Baixar CSV com Atribuições</a>'
                             st.markdown(href, unsafe_allow_html=True)
-                            st.info("O arquivo CSV contém as colunas: Número do Processo, Vara e Servidor Atribuído")
+                            st.info("O arquivo CSV contém as colunas: Número do Processo, Vara, Órgão Julgador e Servidor Atribuído")
                     
                     else:
                         st.info("Nenhum processo atribuído ainda. Use o quadro à esquerda para fazer as primeiras atribuições.")
