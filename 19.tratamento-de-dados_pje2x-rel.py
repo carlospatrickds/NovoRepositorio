@@ -51,6 +51,20 @@ st.markdown("""
         border: 2px solid #dee2e6;
         margin-bottom: 1rem;
     }
+    .assunto-destaque {
+        background-color: #fff3cd;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        border-left: 4px solid #ffc107;
+        margin: 0.5rem 0;
+        font-weight: 500;
+    }
+    .info-processo {
+        background-color: #e9ecef;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -111,7 +125,7 @@ def processar_dados(df):
         for tag in tags_list:
             if 'Servidor' in tag or 'Supervisão' in tag:
                 return tag
-        return "Não atribuído"
+        return "Sem etiqueta"  # Alterado para considerar apenas processos SEM etiqueta
     
     def extrair_vara(tags):
         if pd.isna(tags):
@@ -313,7 +327,7 @@ def criar_relatorio_visao_geral(stats, total_processos):
     # Estatísticas por Mês
     if not stats['mes'].empty:
         pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 8, 'DISTRIBUIÇÃO POR MÊS', 0, 1)
+        pdf.cell(0, 8, 'DISTRIBUIÇÃO POR Mês', 0, 1)
         pdf.set_font('Arial', '', 10)
         for mes, quantidade in stats['mes'].items():
             pdf.cell(0, 6, f'Mês {mes}: {quantidade}', 0, 1)
@@ -768,39 +782,53 @@ def main():
             with tab4:
                 st.markdown("### ✍️ Atribuição de Servidores")
                 
-                # Identificar processos sem etiqueta ou não atribuídos
+                # Identificar processos APENAS sem etiqueta nenhuma
                 processos_sem_etiqueta = processed_df[
-                    (processed_df['servidor'] == "Sem etiqueta") | 
-                    (processed_df['servidor'] == "Não atribuído")
+                    (processed_df['servidor'] == "Sem etiqueta")
                 ].copy()
+                
+                # Atualizar lista de processos disponíveis (remover os já atribuídos)
+                processos_ja_atribuidos = st.session_state.atribuicoes_servidores['NUMERO_PROCESSO'].tolist() if not st.session_state.atribuicoes_servidores.empty else []
+                processos_disponiveis = processos_sem_etiqueta[
+                    ~processos_sem_etiqueta['NUMERO_PROCESSO'].isin(processos_ja_atribuidos)
+                ]
                 
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.markdown("#### 📋 Processos para Atribuição")
-                    st.markdown(f"**Processos sem servidor atribuído:** {len(processos_sem_etiqueta)}")
+                    st.markdown(f"**Processos sem servidor atribuído:** {len(processos_disponiveis)}")
                     
-                    if len(processos_sem_etiqueta) > 0:
+                    if len(processos_disponiveis) > 0:
                         # Seleção de processo para edição
                         processo_selecionado = st.selectbox(
                             "Selecione um processo para atribuir servidor:",
-                            options=processos_sem_etiqueta['NUMERO_PROCESSO'].tolist(),
+                            options=processos_disponiveis['NUMERO_PROCESSO'].tolist(),
                             key="processo_edicao"
                         )
                         
                         if processo_selecionado:
                             # Informações do processo selecionado
-                            processo_info = processos_sem_etiqueta[
-                                processos_sem_etiqueta['NUMERO_PROCESSO'] == processo_selecionado
+                            processo_info = processos_disponiveis[
+                                processos_disponiveis['NUMERO_PROCESSO'] == processo_selecionado
                             ].iloc[0]
                             
                             st.markdown("**Informações do Processo:**")
-                            st.write(f"**Número:** {processo_info['NUMERO_PROCESSO']}")
-                            st.write(f"**Polo Ativo:** {processo_info.get('POLO_ATIVO', 'N/A')}")
-                            st.write(f"**Polo Passivo:** {processo_info.get('POLO_PASSIVO', 'N/A')}")
-                            st.write(f"**Assunto:** {processo_info.get('ASSUNTO_PRINCIPAL', 'N/A')}")
-                            st.write(f"**Vara:** {processo_info.get('vara', 'N/A')}")
-                            st.write(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
+                            st.markdown(f"**Número:** {processo_info['NUMERO_PROCESSO']}")
+                            st.markdown(f"**Polo Ativo:** {processo_info.get('POLO_ATIVO', 'N/A')}")
+                            st.markdown(f"**Polo Passivo:** {processo_info.get('POLO_PASSIVO', 'N/A')}")
+                            
+                            # ASSUNTO EM DESTAQUE
+                            assunto = processo_info.get('ASSUNTO_PRINCIPAL', 'N/A')
+                            st.markdown(f'<div class="assunto-destaque"><strong>Assunto:</strong> {assunto}</div>', unsafe_allow_html=True)
+                            
+                            # Vara - usar Órgão Julgador se não tiver etiqueta de vara
+                            vara_atual = processo_info.get('vara', 'Vara não identificada')
+                            if vara_atual == "Vara não identificada" and 'ORGAO_JULGADOR' in processo_info:
+                                vara_atual = processo_info['ORGAO_JULGADOR']
+                            
+                            st.markdown(f"**Vara:** {vara_atual}")
+                            st.markdown(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
                             
                             # Seleção de servidor
                             servidores_disponiveis = [
@@ -816,10 +844,15 @@ def main():
                             
                             # Botão para aplicar a alteração
                             if st.button("💾 Aplicar Atribuição", key="aplicar_edicao"):
+                                # Determinar a vara final (usar Órgão Julgador se não tiver vara)
+                                vara_final = processo_info.get('vara', 'Vara não identificada')
+                                if vara_final == "Vara não identificada" and 'ORGAO_JULGADOR' in processo_info:
+                                    vara_final = processo_info['ORGAO_JULGADOR']
+                                
                                 # Criar registro da atribuição
                                 atribuicao = {
                                     'NUMERO_PROCESSO': processo_info['NUMERO_PROCESSO'],
-                                    'vara': processo_info.get('vara', 'Vara não identificada'),
+                                    'vara': vara_final,
                                     'servidor': novo_servidor,
                                     'data_atribuicao': get_local_time().strftime('%d/%m/%Y %H:%M'),
                                     'POLO_ATIVO': processo_info.get('POLO_ATIVO', ''),
