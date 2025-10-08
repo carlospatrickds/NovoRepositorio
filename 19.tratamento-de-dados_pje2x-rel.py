@@ -85,6 +85,8 @@ def mapear_e_padronizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 @st.cache_data
+# Na função processar_dados, modifique a parte do processamento de datas:
+
 def processar_dados(df):
     """Processa os dados do CSV, usando APENAS nomes de colunas padronizados."""
     
@@ -128,14 +130,15 @@ def processar_dados(df):
             data_str = str(data_str)
             
             try:
-                data_part = data_str.split(',')[0].strip()
-                return datetime.strptime(data_part, '%d/%m/%Y')
-            except:
-                pass
-            
-            try:
+                # Tenta converter timestamp em milissegundos
                 if len(data_str) > 10 and data_str.isdigit():
                     return pd.to_datetime(int(data_str), unit='ms').to_pydatetime()
+            except:
+                pass
+                
+            # Tenta outros formatos se necessário
+            try:
+                return pd.to_datetime(data_str, errors='coerce')
             except:
                 pass
                 
@@ -143,25 +146,34 @@ def processar_dados(df):
 
         processed_df['data_chegada_obj'] = processed_df['DATA_CHEGADA_RAW'].apply(extrair_data_chegada)
         
-        processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
-        processed_df['dia'] = processed_df['data_chegada_obj'].dt.day
-        
-        processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y')
+        # CORREÇÃO: Só criar colunas de mês e dia se as datas foram processadas com sucesso
+        if not processed_df['data_chegada_obj'].isna().all():
+            processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
+            processed_df['dia'] = processed_df['data_chegada_obj'].dt.day
+            
+            processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y')
         
         # Calcular coluna 'DIAS' se não existir
-        if 'DIAS' not in processed_df.columns:
+        if 'DIAS' not in processed_df.columns and 'data_chegada_obj' in processed_df.columns:
             data_referencia = pd.to_datetime('2025-10-07') 
             
             processed_df['DIAS'] = (data_referencia - processed_df['data_chegada_obj']).dt.days
             processed_df['DIAS'] = processed_df['DIAS'].fillna(0).astype(int)
         
-        processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
+        if 'data_chegada_obj' in processed_df.columns:
+            processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
         
-    cols_to_keep = list(COLUNA_MAP.keys()) + ['servidor', 'vara', 'data_chegada_obj', 'mes', 'dia', 'data_chegada_formatada']
+    cols_to_keep = list(COLUNA_MAP.keys()) + ['servidor', 'vara']
+    
+    # Adiciona colunas opcionais se existirem
+    optional_cols = ['data_chegada_obj', 'mes', 'dia', 'data_chegada_formatada']
+    for col in optional_cols:
+        if col in processed_df.columns:
+            cols_to_keep.append(col)
+            
     processed_df = processed_df.filter(items=cols_to_keep)
 
     return processed_df
-
 def criar_estatisticas(df):
     """Cria estatísticas usando APENAS nomes de colunas padronizados."""
     
@@ -172,6 +184,7 @@ def criar_estatisticas(df):
     else:
         stats['polo_passivo'] = pd.Series(dtype='int64')
 
+    # CORREÇÃO: Só criar estatística de mês se a coluna existir
     if 'mes' in df.columns:
         stats['mes'] = df['mes'].value_counts().sort_index()
     else:
@@ -193,7 +206,7 @@ def criar_estatisticas(df):
         stats['assunto'] = pd.Series(dtype='int64')
     
     return stats
-
+    
 def criar_grafico_barras(dados, titulo, eixo_x, eixo_y):
     df_plot = pd.DataFrame({
         eixo_x: dados.index,
@@ -628,81 +641,89 @@ def main():
                 st.markdown("#### Por Vara")
                 st.dataframe(stats['vara'], use_container_width=True)
         
-        with tab3:
-            st.markdown("### 🔍 Filtros Avançados")
-            
-            if 'servidor' not in processed_df.columns:
-                st.error("Não foi possível processar a coluna de Servidor ('Etiquetas'/'tagsProcessoList'). Os filtros podem estar incompletos.")
-                return
+        # Na função main(), dentro do bloco with tab3:, substitua esta parte:
 
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                servidor_filter = st.multiselect(
-                    "Filtrar por Servidor",
-                    options=sorted(processed_df['servidor'].unique()),
-                    default=None
-                )
-                
-                mes_filter = st.multiselect(
-                    "Filtrar por Mês",
-                    options=sorted(processed_df['mes'].dropna().unique()),
-                    default=None
-                )
-            
-            with col2:
-                polo_passivo_filter = st.multiselect(
-                    "Filtrar por Polo Passivo",
-                    options=sorted(processed_df['POLO_PASSIVO'].unique()),
-                    default=None
-                )
-                
-                assunto_filter = st.multiselect(
-                    "Filtrar por Assunto",
-                    options=sorted(processed_df['ASSUNTO_PRINCIPAL'].dropna().unique()),
-                    default=None
-                )
-            
-            with col3:
-                vara_filter = st.multiselect(
-                    "Filtrar por Vara",
-                    options=sorted(processed_df['vara'].unique()),
-                    default=None
-                )
-                
-                orgao_julgador_filter = st.multiselect(
-                    "Filtrar por Órgão Julgador",
-                    options=sorted(processed_df['ORGAO_JULGADOR'].dropna().unique()),
-                    default=None
-                )
-            
-            filtered_df = processed_df.copy()
-            filtros_aplicados = []
-            
-            # Lógica de Filtragem
-            if servidor_filter:
-                filtered_df = filtered_df[filtered_df['servidor'].isin(servidor_filter)]
-                filtros_aplicados.append(f"Servidor: {', '.join(servidor_filter)}")
-            
-            if mes_filter:
-                filtered_df = filtered_df[filtered_df['mes'].isin(mes_filter)]
-                filtros_aplicados.append(f"Mês: {', '.join(map(str, mes_filter))}")
-            
-            if polo_passivo_filter:
-                filtered_df = filtered_df[filtered_df['POLO_PASSIVO'].isin(polo_passivo_filter)]
-                filtros_aplicados.append(f"Polo Passivo: {', '.join(polo_passivo_filter)}")
-            
-            if assunto_filter:
-                filtered_df = filtered_df[filtered_df['ASSUNTO_PRINCIPAL'].isin(assunto_filter)]
-                filtros_aplicados.append(f"Assunto: {', '.join(assunto_filter)}")
-            
-            if vara_filter:
-                filtered_df = filtered_df[filtered_df['vara'].isin(vara_filter)]
-                filtros_aplicados.append(f"Vara: {', '.join(vara_filter)}")
-                
-            if orgao_julgador_filter:
-                filtered_df = filtered_df[filtered_df['ORGAO_JULGADOR'].isin(orgao_julgador_filter)]
-                filtros_aplicados.append(f"Órgão Julgador: {', '.join(orgao_julgador_filter)}")
+with tab3:
+    st.markdown("### 🔍 Filtros Avançados")
+    
+    if 'servidor' not in processed_df.columns:
+        st.error("Não foi possível processar a coluna de Servidor ('Etiquetas'/'tagsProcessoList'). Os filtros podem estar incompletos.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        servidor_filter = st.multiselect(
+            "Filtrar por Servidor",
+            options=sorted(processed_df['servidor'].unique()),
+            default=None
+        )
+        
+        # CORREÇÃO: Verificar se a coluna 'mes' existe antes de usar
+        if 'mes' in processed_df.columns:
+            mes_filter = st.multiselect(
+                "Filtrar por Mês",
+                options=sorted(processed_df['mes'].dropna().unique()),
+                default=None
+            )
+        else:
+            mes_filter = None
+            st.info("Filtro por mês não disponível")
+    
+    with col2:
+        polo_passivo_filter = st.multiselect(
+            "Filtrar por Polo Passivo",
+            options=sorted(processed_df['POLO_PASSIVO'].unique()),
+            default=None
+        )
+        
+        assunto_filter = st.multiselect(
+            "Filtrar por Assunto",
+            options=sorted(processed_df['ASSUNTO_PRINCIPAL'].dropna().unique()),
+            default=None
+        )
+    
+    with col3:
+        vara_filter = st.multiselect(
+            "Filtrar por Vara",
+            options=sorted(processed_df['vara'].unique()),
+            default=None
+        )
+        
+        orgao_julgador_filter = st.multiselect(
+            "Filtrar por Órgão Julgador",
+            options=sorted(processed_df['ORGAO_JULGADOR'].dropna().unique()),
+            default=None
+        )
+    
+    filtered_df = processed_df.copy()
+    filtros_aplicados = []
+    
+    # Lógica de Filtragem
+    if servidor_filter:
+        filtered_df = filtered_df[filtered_df['servidor'].isin(servidor_filter)]
+        filtros_aplicados.append(f"Servidor: {', '.join(servidor_filter)}")
+    
+    # CORREÇÃO: Só aplicar filtro de mês se a coluna existir
+    if mes_filter and 'mes' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['mes'].isin(mes_filter)]
+        filtros_aplicados.append(f"Mês: {', '.join(map(str, mes_filter))}")
+    
+    if polo_passivo_filter:
+        filtered_df = filtered_df[filtered_df['POLO_PASSIVO'].isin(polo_passivo_filter)]
+        filtros_aplicados.append(f"Polo Passivo: {', '.join(polo_passivo_filter)}")
+    
+    if assunto_filter:
+        filtered_df = filtered_df[filtered_df['ASSUNTO_PRINCIPAL'].isin(assunto_filter)]
+        filtros_aplicados.append(f"Assunto: {', '.join(assunto_filter)}")
+    
+    if vara_filter:
+        filtered_df = filtered_df[filtered_df['vara'].isin(vara_filter)]
+        filtros_aplicados.append(f"Vara: {', '.join(vara_filter)}")
+        
+    if orgao_julgador_filter:
+        filtered_df = filtered_df[filtered_df['ORGAO_JULGADOR'].isin(orgao_julgador_filter)]
+        filtros_aplicados.append(f"Órgão Julgador: {', '.join(orgao_julgador_filter)}")
             
             filtros_texto = " | ".join(filtros_aplicados) if filtros_aplicados else "Nenhum filtro aplicado"
             
