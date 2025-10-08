@@ -725,7 +725,7 @@ with tab3:
         filtered_df = filtered_df[filtered_df['ORGAO_JULGADOR'].isin(orgao_julgador_filter)]
         filtros_aplicados.append(f"Órgão Julgador: {', '.join(orgao_julgador_filter)}")
             
-            filtros_texto = " | ".join(filtros_aplicados) if filtros_aplicados else "Nenhum filtro aplicado"
+        filtros_texto = " | ".join(filtros_aplicados) if filtros_aplicados else "Nenhum filtro aplicado"
             
             st.metric("Processos Filtrados", len(filtered_df))
             
