@@ -44,6 +44,13 @@ st.markdown("""
         white-space: normal !important;
         max-width: 300px;
     }
+    .quadro-atribuicao {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 2px solid #dee2e6;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -487,6 +494,19 @@ def gerar_link_download_pdf(pdf, nome_arquivo):
         st.error(f"Erro ao gerar PDF: {e}")
         return ""
 
+def gerar_csv_atribuicoes(df_atribuicoes):
+    """Gera CSV com as atribuições de servidor"""
+    if df_atribuicoes.empty:
+        return None
+    
+    # Criar DataFrame com colunas específicas
+    df_csv = df_atribuicoes[['NUMERO_PROCESSO', 'vara', 'servidor']].copy()
+    df_csv.columns = ['Número do Processo', 'Vara', 'Servidor Atribuído']
+    
+    # Converter para CSV
+    csv = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
+    return csv
+
 # --- FUNÇÃO PRINCIPAL (MAIN) ---
 
 def main():
@@ -524,77 +544,12 @@ def main():
                 processed_df = processar_dados(df_padronizado)
                 stats = criar_estatisticas(processed_df)
             
-            # ✍️ FUNCIONALIDADE DE EDIÇÃO TEMPORÁRIA DE SERVIDOR
-            st.markdown("---")
-            st.markdown("### ✍️ Edição Temporária de Servidor (Processos Sem Etiqueta)")
+            # Inicializar session state para atribuições
+            if 'atribuicoes_servidores' not in st.session_state:
+                st.session_state.atribuicoes_servidores = pd.DataFrame()
             
-            # Identificar processos sem etiqueta ou não atribuídos
-            processos_sem_etiqueta = processed_df[
-                (processed_df['servidor'] == "Sem etiqueta") | 
-                (processed_df['servidor'] == "Não atribuído")
-            ].copy()
-            
-            if len(processos_sem_etiqueta) > 0:
-                st.info(f"Encontrados {len(processos_sem_etiqueta)} processos sem servidor atribuído.")
-                
-                # Seleção de processo para edição
-                processo_selecionado = st.selectbox(
-                    "Selecione um processo para atribuir servidor:",
-                    options=processos_sem_etiqueta['NUMERO_PROCESSO'].tolist(),
-                    key="processo_edicao"
-                )
-                
-                if processo_selecionado:
-                    # Informações do processo selecionado
-                    processo_info = processos_sem_etiqueta[
-                        processos_sem_etiqueta['NUMERO_PROCESSO'] == processo_selecionado
-                    ].iloc[0]
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write(f"**Processo:** {processo_info['NUMERO_PROCESSO']}")
-                        st.write(f"**Polo Ativo:** {processo_info.get('POLO_ATIVO', 'N/A')}")
-                        st.write(f"**Polo Passivo:** {processo_info.get('POLO_PASSIVO', 'N/A')}")
-                    
-                    with col2:
-                        st.write(f"**Assunto:** {processo_info.get('ASSUNTO_PRINCIPAL', 'N/A')}")
-                        st.write(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
-                        st.write(f"**Status atual:** {processo_info['servidor']}")
-                    
-                    # Seleção de servidor
-                    servidores_disponiveis = [
-                        "Servidor 1", "Servidor 2", "Servidor 3", "Servidor 4", 
-                        "Servidor 5", "Servidor 6", "Supervisão"
-                    ]
-                    
-                    novo_servidor = st.selectbox(
-                        "Atribuir servidor:",
-                        options=servidores_disponiveis,
-                        key="novo_servidor"
-                    )
-                    
-                    # Botão para aplicar a alteração
-                    if st.button("💾 Aplicar Atribuição Temporária", key="aplicar_edicao"):
-                        # Atualizar o DataFrame processado
-                        mask = processed_df['NUMERO_PROCESSO'] == processo_selecionado
-                        processed_df.loc[mask, 'servidor'] = novo_servidor
-                        
-                        # Atualizar estatísticas
-                        stats = criar_estatisticas(processed_df)
-                        
-                        st.success(f"✅ Servidor '{novo_servidor}' atribuído ao processo {processo_selecionado}!")
-                        
-                        # Atualizar a lista de processos sem etiqueta
-                        processos_sem_etiqueta = processed_df[
-                            (processed_df['servidor'] == "Sem etiqueta") | 
-                            (processed_df['servidor'] == "Não atribuído")
-                        ]
-            else:
-                st.success("✅ Todos os processos já possuem servidor atribuído!")
-            
-            # Abas para organização
-            tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "📈 Estatísticas", "🔍 Filtros Avançados"])
+            # Abas para organização - AGORA COM GUIA SEPARADA PARA ATRIBUIÇÃO
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Visão Geral", "📈 Estatísticas", "🔍 Filtros Avançados", "✍️ Atribuir Servidores"])
             
             with tab1:
                 st.markdown("### 📊 Dashboard - Visão Geral")
@@ -809,6 +764,108 @@ def main():
                 
                 else:
                     st.warning("Coluna 'servidor' não encontrada no arquivo.")
+            
+            with tab4:
+                st.markdown("### ✍️ Atribuição de Servidores")
+                
+                # Identificar processos sem etiqueta ou não atribuídos
+                processos_sem_etiqueta = processed_df[
+                    (processed_df['servidor'] == "Sem etiqueta") | 
+                    (processed_df['servidor'] == "Não atribuído")
+                ].copy()
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### 📋 Processos para Atribuição")
+                    st.markdown(f"**Processos sem servidor atribuído:** {len(processos_sem_etiqueta)}")
+                    
+                    if len(processos_sem_etiqueta) > 0:
+                        # Seleção de processo para edição
+                        processo_selecionado = st.selectbox(
+                            "Selecione um processo para atribuir servidor:",
+                            options=processos_sem_etiqueta['NUMERO_PROCESSO'].tolist(),
+                            key="processo_edicao"
+                        )
+                        
+                        if processo_selecionado:
+                            # Informações do processo selecionado
+                            processo_info = processos_sem_etiqueta[
+                                processos_sem_etiqueta['NUMERO_PROCESSO'] == processo_selecionado
+                            ].iloc[0]
+                            
+                            st.markdown("**Informações do Processo:**")
+                            st.write(f"**Número:** {processo_info['NUMERO_PROCESSO']}")
+                            st.write(f"**Polo Ativo:** {processo_info.get('POLO_ATIVO', 'N/A')}")
+                            st.write(f"**Polo Passivo:** {processo_info.get('POLO_PASSIVO', 'N/A')}")
+                            st.write(f"**Assunto:** {processo_info.get('ASSUNTO_PRINCIPAL', 'N/A')}")
+                            st.write(f"**Vara:** {processo_info.get('vara', 'N/A')}")
+                            st.write(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
+                            
+                            # Seleção de servidor
+                            servidores_disponiveis = [
+                                "Servidor 1", "Servidor 2", "Servidor 3", "Servidor 4", 
+                                "Servidor 5", "Servidor 6", "Supervisão"
+                            ]
+                            
+                            novo_servidor = st.selectbox(
+                                "Atribuir servidor:",
+                                options=servidores_disponiveis,
+                                key="novo_servidor"
+                            )
+                            
+                            # Botão para aplicar a alteração
+                            if st.button("💾 Aplicar Atribuição", key="aplicar_edicao"):
+                                # Criar registro da atribuição
+                                atribuicao = {
+                                    'NUMERO_PROCESSO': processo_info['NUMERO_PROCESSO'],
+                                    'vara': processo_info.get('vara', 'Vara não identificada'),
+                                    'servidor': novo_servidor,
+                                    'data_atribuicao': get_local_time().strftime('%d/%m/%Y %H:%M'),
+                                    'POLO_ATIVO': processo_info.get('POLO_ATIVO', ''),
+                                    'ASSUNTO_PRINCIPAL': processo_info.get('ASSUNTO_PRINCIPAL', '')
+                                }
+                                
+                                # Adicionar à session state
+                                nova_atribuicao_df = pd.DataFrame([atribuicao])
+                                st.session_state.atribuicoes_servidores = pd.concat(
+                                    [st.session_state.atribuicoes_servidores, nova_atribuicao_df], 
+                                    ignore_index=True
+                                )
+                                
+                                st.success(f"✅ Servidor '{novo_servidor}' atribuído ao processo {processo_selecionado}!")
+                                st.rerun()
+                    
+                    else:
+                        st.success("🎉 Todos os processos já possuem servidor atribuído!")
+                
+                with col2:
+                    st.markdown("#### ✅ Processos Atribuídos")
+                    
+                    if not st.session_state.atribuicoes_servidores.empty:
+                        st.markdown(f"**Total de processos atribuídos:** {len(st.session_state.atribuicoes_servidores)}")
+                        
+                        # Exibir processos atribuídos
+                        df_exibicao_atribuidos = st.session_state.atribuicoes_servidores[[
+                            'NUMERO_PROCESSO', 'vara', 'servidor', 'data_atribuicao'
+                        ]].copy()
+                        
+                        df_exibicao_atribuidos.columns = ['Nº Processo', 'Vara', 'Servidor', 'Data/Hora Atribuição']
+                        st.dataframe(df_exibicao_atribuidos, use_container_width=True)
+                        
+                        # Botão para download do CSV
+                        st.markdown("---")
+                        st.markdown("#### 📥 Download das Atribuições")
+                        
+                        csv_atribuicoes = gerar_csv_atribuicoes(st.session_state.atribuicoes_servidores)
+                        if csv_atribuicoes:
+                            b64 = base64.b64encode(csv_atribuicoes.encode()).decode()
+                            href = f'<a href="data:file/csv;base64,{b64}" download="atribuicoes_servidores_{get_local_time().strftime("%Y%m%d_%H%M")}.csv">📊 Baixar CSV com Atribuições</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                            st.info("O arquivo CSV contém as colunas: Número do Processo, Vara e Servidor Atribuído")
+                    
+                    else:
+                        st.info("Nenhum processo atribuído ainda. Use o quadro à esquerda para fazer as primeiras atribuições.")
         
         except Exception as e:
             st.error(f"❌ Erro ao processar o arquivo: {str(e)}")
@@ -837,7 +894,7 @@ def main():
         - 📈 **Estatísticas detalhadas** por servidor, vara, assunto e mês
         - 🔍 **Filtros avançados** para análise específica
         - 📄 **Geração de relatórios** em PDF
-        - ✍️ **Edição temporária** de servidor para processos sem etiqueta
+        - ✍️ **Atribuição de servidores** em guia separada
         """)
 
 if __name__ == "__main__":
