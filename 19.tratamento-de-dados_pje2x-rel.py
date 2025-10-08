@@ -70,12 +70,12 @@ def get_local_time():
     brasil_tz = timezone(timedelta(hours=-3))
     return utc_now.astimezone(brasil_tz)
 
-@st.cache_data
 def mapear_e_padronizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
     """Renomeia as colunas do DataFrame para um padrão único."""
     colunas_padronizadas = {}
     
     for padrao, possiveis in COLUNA_MAP.items():
+        # Encontra o nome da coluna que existe no arquivo atual
         coluna_encontrada = next((col for col in possiveis if col in df.columns), None)
         
         if coluna_encontrada:
@@ -84,12 +84,13 @@ def mapear_e_padronizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
     df.rename(columns=colunas_padronizadas, inplace=True)
     return df
 
-@st.cache_data
 def processar_dados(df):
     """Processa os dados do CSV, usando APENAS nomes de colunas padronizados."""
     
+    # Criar cópia para não modificar o original
     processed_df = df.copy()
     
+    # Colunas essenciais que DEVEM existir após a padronização
     if 'ETIQUETAS' not in processed_df.columns:
         st.error("Coluna 'ETIQUETAS' (ou 'tagsProcessoList') não encontrada. O arquivo não está no formato esperado.")
         return processed_df
@@ -114,6 +115,7 @@ def processar_dados(df):
                 return tag
         return "Vara não identificada"
         
+    # Aplicar processamento de tags
     processed_df['servidor'] = processed_df['ETIQUETAS'].apply(extrair_servidor)
     processed_df['vara'] = processed_df['ETIQUETAS'].apply(extrair_vara)
 
@@ -127,48 +129,57 @@ def processar_dados(df):
                 return None
             data_str = str(data_str)
             
+            # Caso 1: Formato "DD/MM/YYYY, HH:MM:SS" (modelotester)
             try:
-                # Tenta converter timestamp em milissegundos
-                if len(data_str) > 10 and data_str.isdigit():
-                    return pd.to_datetime(int(data_str), unit='ms').to_pydatetime()
+                data_part = data_str.split(',')[0].strip()
+                return datetime.strptime(data_part, '%d/%m/%Y')
             except:
                 pass
-                
-            # Tenta outros formatos se necessário
+            
+            # Caso 2: Formato Timestamp (Processos_Painel_Gerencial_PJE+R)
             try:
-                return pd.to_datetime(data_str, errors='coerce')
+                # O primeiro arquivo usa um timestamp em milissegundos
+                if len(data_str) > 10 and data_str.isdigit():
+                    timestamp_ms = int(data_str)
+                    # Converter para datetime (dividindo por 1000 se for milissegundos)
+                    if timestamp_ms > 253402300799:  # Se for muito grande, provavelmente está em milissegundos
+                        timestamp_ms = timestamp_ms / 1000
+                    return datetime.fromtimestamp(timestamp_ms)
             except:
                 pass
                 
             return None
 
+        # Aplica a extração da data
         processed_df['data_chegada_obj'] = processed_df['DATA_CHEGADA_RAW'].apply(extrair_data_chegada)
         
-        # CORREÇÃO: Só criar colunas de mês e dia se as datas foram processadas com sucesso
-        if not processed_df['data_chegada_obj'].isna().all():
-            processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
-            processed_df['dia'] = processed_df['data_chegada_obj'].dt.day
-            
-            processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y')
+        # Remove datas inválidas (None)
+        processed_df = processed_df[processed_df['data_chegada_obj'].notna()]
+        
+        # Calcula Mês e Ano
+        processed_df['mes'] = processed_df['data_chegada_obj'].dt.month
+        processed_df['ano'] = processed_df['data_chegada_obj'].dt.year
+        processed_df['mes_ano'] = processed_df['data_chegada_obj'].dt.strftime('%m/%Y')
+        
+        # Formatar data de chegada (apenas data)
+        processed_df['data_chegada_formatada'] = processed_df['data_chegada_obj'].dt.strftime('%d/%m/%Y')
         
         # Calcular coluna 'DIAS' se não existir
-        if 'DIAS' not in processed_df.columns and 'data_chegada_obj' in processed_df.columns:
-            data_referencia = pd.to_datetime('2025-10-07') 
+        if 'DIAS' not in processed_df.columns:
+            st.info("Calculando coluna 'DIAS' a partir da data de chegada...")
+            # Usando a data atual como referência
+            data_referencia = get_local_time()
             
+            # Calcular a diferença em dias
             processed_df['DIAS'] = (data_referencia - processed_df['data_chegada_obj']).dt.days
             processed_df['DIAS'] = processed_df['DIAS'].fillna(0).astype(int)
         
-        if 'data_chegada_obj' in processed_df.columns:
-            processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
+        # Ordenar por data de chegada (mais recente primeiro)
+        processed_df = processed_df.sort_values('data_chegada_obj', ascending=False)
         
-    cols_to_keep = list(COLUNA_MAP.keys()) + ['servidor', 'vara']
-    
-    # Adiciona colunas opcionais se existirem
-    optional_cols = ['data_chegada_obj', 'mes', 'dia', 'data_chegada_formatada']
-    for col in optional_cols:
-        if col in processed_df.columns:
-            cols_to_keep.append(col)
-            
+    # Colunas de saída (usando os nomes padronizados)
+    cols_to_keep = list(COLUNA_MAP.keys()) + ['servidor', 'vara', 'data_chegada_obj', 'mes', 'ano', 'mes_ano', 'data_chegada_formatada']
+    cols_to_keep = [col for col in cols_to_keep if col in processed_df.columns]
     processed_df = processed_df.filter(items=cols_to_keep)
 
     return processed_df
@@ -178,29 +189,39 @@ def criar_estatisticas(df):
     
     stats = {}
     
+    # Estatísticas por Polo Passivo
     if 'POLO_PASSIVO' in df.columns:
-        stats['polo_passivo'] = df['POLO_PASSIVO'].value_counts().head(10)
+        polo_passivo_stats = df['POLO_PASSIVO'].value_counts().head(10)
+        stats['polo_passivo'] = polo_passivo_stats
     else:
         stats['polo_passivo'] = pd.Series(dtype='int64')
 
-    # CORREÇÃO: Só criar estatística de mês se a coluna existir
+    # Estatísticas por Mês (CORRIGIDO - apenas meses existentes)
     if 'mes' in df.columns:
-        stats['mes'] = df['mes'].value_counts().sort_index()
+        # Filtra apenas meses que realmente existem nos dados
+        mes_stats = df['mes'].value_counts().sort_index()
+        stats['mes'] = mes_stats
     else:
         stats['mes'] = pd.Series(dtype='int64')
 
+    # Estatísticas por Servidor
     if 'servidor' in df.columns:
-        stats['servidor'] = df['servidor'].value_counts()
+        servidor_stats = df['servidor'].value_counts()
+        stats['servidor'] = servidor_stats
     else:
         stats['servidor'] = pd.Series(dtype='int64')
 
+    # Estatísticas por Vara
     if 'vara' in df.columns:
-        stats['vara'] = df['vara'].value_counts().head(10)
+        vara_stats = df['vara'].value_counts().head(10)
+        stats['vara'] = vara_stats
     else:
         stats['vara'] = pd.Series(dtype='int64')
 
+    # Estatísticas por Assunto
     if 'ASSUNTO_PRINCIPAL' in df.columns:
-        stats['assunto'] = df['ASSUNTO_PRINCIPAL'].value_counts().head(10)
+        assunto_stats = df['ASSUNTO_PRINCIPAL'].value_counts().head(10)
+        stats['assunto'] = assunto_stats
     else:
         stats['assunto'] = pd.Series(dtype='int64')
     
@@ -231,6 +252,7 @@ def criar_grafico_pizza_com_legenda(dados, titulo):
         'percentual': (dados.values / dados.values.sum() * 100).round(1)
     })
     
+    # Criar labels com valores
     df_plot['label'] = df_plot['categoria'] + ' (' + df_plot['valor'].astype(str) + ' - ' + df_plot['percentual'].astype(str) + '%)'
     
     chart = alt.Chart(df_plot).mark_arc().encode(
@@ -259,10 +281,12 @@ def criar_relatorio_visao_geral(stats, total_processos):
     pdf = PDF()
     pdf.add_page()
     
+    # Título do relatório
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 10, 'RELATÓRIO - VISÃO GERAL', 0, 1, 'C')
     pdf.ln(5)
     
+    # Informações gerais
     pdf.set_font('Arial', 'B', 12)
     pdf.cell(0, 8, 'INFORMAÇÕES GERAIS', 0, 1)
     pdf.set_font('Arial', '', 10)
@@ -270,13 +294,16 @@ def criar_relatorio_visao_geral(stats, total_processos):
     pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
     pdf.ln(10)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'DISTRIBUIÇÃO POR POLO PASSIVO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for polo, quantidade in stats['polo_passivo'].items():
-        pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
-    pdf.ln(5)
+    # Estatísticas por Polo Passivo
+    if not stats['polo_passivo'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'DISTRIBUIÇÃO POR POLO PASSIVO (Top 10)', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for polo, quantidade in stats['polo_passivo'].items():
+            pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
+        pdf.ln(5)
     
+    # Estatísticas por Mês
     if not stats['mes'].empty:
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 8, 'DISTRIBUIÇÃO POR MÊS', 0, 1)
@@ -285,19 +312,24 @@ def criar_relatorio_visao_geral(stats, total_processos):
             pdf.cell(0, 6, f'Mês {mes}: {quantidade}', 0, 1)
         pdf.ln(5)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'DISTRIBUIÇÃO POR SERVIDOR', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for servidor, quantidade in stats['servidor'].items():
-        pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
-    pdf.ln(5)
+    # Estatísticas por Servidor
+    if not stats['servidor'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'DISTRIBUIÇÃO POR SERVIDOR', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for servidor, quantidade in stats['servidor'].items():
+            pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
+        pdf.ln(5)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'PRINCIPAIS ASSUNTOS (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for assunto, quantidade in stats['assunto'].items():
-        pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
+    # Estatísticas por Assunto
+    if not stats['assunto'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'PRINCIPAIS ASSUNTOS (Top 10)', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for assunto, quantidade in stats['assunto'].items():
+            pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
     
+    # Data e hora no final
     pdf.ln(10)
     pdf.set_font('Arial', 'I', 8)
     pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
@@ -318,21 +350,26 @@ def criar_relatorio_estatisticas(stats):
     pdf = PDF()
     pdf.add_page()
     
+    # Título do relatório
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 10, 'RELATÓRIO - ESTATÍSTICAS DETALHADAS', 0, 1, 'C')
     pdf.ln(5)
     
+    # Informações gerais
     pdf.set_font('Arial', '', 10)
     pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
     pdf.ln(10)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR POLO PASSIVO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for polo, quantidade in stats['polo_passivo'].items():
-        pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
-    pdf.ln(5)
+    # Estatísticas por Polo Passivo
+    if not stats['polo_passivo'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'POR POLO PASSIVO (Top 10)', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for polo, quantidade in stats['polo_passivo'].items():
+            pdf.cell(0, 6, f'{polo}: {quantidade}', 0, 1)
+        pdf.ln(5)
     
+    # Estatísticas por Mês
     if not stats['mes'].empty:
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 8, 'POR MÊS', 0, 1)
@@ -341,26 +378,33 @@ def criar_relatorio_estatisticas(stats):
             pdf.cell(0, 6, f'Mês {mes}: {quantidade}', 0, 1)
         pdf.ln(5)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR SERVIDOR', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for servidor, quantidade in stats['servidor'].items():
-        pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
-    pdf.ln(5)
+    # Estatísticas por Servidor
+    if not stats['servidor'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'POR SERVIDOR', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for servidor, quantidade in stats['servidor'].items():
+            pdf.cell(0, 6, f'{servidor}: {quantidade}', 0, 1)
+        pdf.ln(5)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR VARA (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for vara, quantidade in stats['vara'].items():
-        pdf.cell(0, 6, f'{vara}: {quantidade}', 0, 1)
-    pdf.ln(5)
+    # Estatísticas por Vara
+    if not stats['vara'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'POR VARA (Top 10)', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for vara, quantidade in stats['vara'].items():
+            pdf.cell(0, 6, f'{vara}: {quantidade}', 0, 1)
+        pdf.ln(5)
     
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, 'POR ASSUNTO (Top 10)', 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for assunto, quantidade in stats['assunto'].items():
-        pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
+    # Estatísticas por Assunto
+    if not stats['assunto'].empty:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, 'POR ASSUNTO (Top 10)', 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for assunto, quantidade in stats['assunto'].items():
+            pdf.cell(0, 6, f'{assunto}: {quantidade}', 0, 1)
     
+    # Data e hora no final
     pdf.ln(10)
     pdf.set_font('Arial', 'I', 8)
     pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
@@ -381,14 +425,16 @@ def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
     pdf = PDF()
     pdf.add_page()
     
+    # Título do relatório
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 10, 'RELATÓRIO - FILTROS APLICADOS', 0, 1, 'C')
     pdf.ln(5)
     
+    # Informações dos filtros
     pdf.set_font('Arial', 'B', 12)
     pdf.cell(0, 8, 'FILTROS APLICADOS:', 0, 1)
     pdf.set_font('Arial', '', 10)
-    pdf.multi_cell(0, 5, filtros_aplicados)
+    pdf.cell(0, 6, filtros_aplicados, 0, 1)
     pdf.ln(5)
     
     pdf.set_font('Arial', '', 10)
@@ -396,32 +442,34 @@ def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
     pdf.cell(0, 6, f'Data de geração: {get_local_time().strftime("%d/%m/%Y %H:%M")}', 0, 1)
     pdf.ln(10)
     
+    # Tabela de processos - MOSTRAR TODOS OS PROCESSOS
     if len(df_filtrado) > 0:
-        pdf.set_font('Arial', 'B', 8)
-        colunas = ['Nº Processo', 'Polo Ativo', 'Data', 'Orgão Julgador', 'Servidor', 'Assunto']
-        larguras = [30, 35, 18, 25, 25, 55] 
+        pdf.set_font('Arial', 'B', 9)
+        colunas = ['Nº Processo', 'Polo Ativo', 'Data', 'Servidor', 'Assunto']
+        larguras = [35, 45, 20, 30, 60]
         
+        # Cabeçalho da tabela
         for i, coluna in enumerate(colunas):
             pdf.cell(larguras[i], 10, coluna, 1, 0, 'C')
         pdf.ln()
         
-        pdf.set_font('Arial', '', 6)
+        # Dados da tabela - TODOS os processos filtrados
+        pdf.set_font('Arial', '', 7)
         for _, row in df_filtrado.iterrows():
-            n_processo = str(row.get('Nº Processo', ''))[:20]
-            polo_ativo = str(row.get('Polo Ativo', ''))[:20]
-            data_chegada = str(row.get('Data Chegada', ''))[:10]
-            orgao_julgador = str(row.get('Órgão Julgador', ''))[:15]
-            servidor = str(row.get('Servidor', ''))[:15]
-            assunto = str(row.get('Assunto Principal', ''))[:30]
+            n_processo = str(row['Nº Processo']) if pd.notna(row['Nº Processo']) else ''
+            polo_ativo = str(row['Polo Ativo']) if pd.notna(row['Polo Ativo']) else ''
+            data_chegada = str(row['Data Chegada']) if pd.notna(row['Data Chegada']) else ''
+            servidor = str(row['Servidor']) if pd.notna(row['Servidor']) else ''
+            assunto = str(row['Assunto Principal']) if pd.notna(row['Assunto Principal']) else ''
             
-            pdf.cell(larguras[0], 8, n_processo, 1)
-            pdf.cell(larguras[1], 8, polo_ativo, 1)
-            pdf.cell(larguras[2], 8, data_chegada, 1)
-            pdf.cell(larguras[3], 8, orgao_julgador, 1)
-            pdf.cell(larguras[4], 8, servidor, 1)
-            pdf.cell(larguras[5], 8, assunto, 1)
+            pdf.cell(larguras[0], 8, n_processo[:20], 1)
+            pdf.cell(larguras[1], 8, polo_ativo[:25], 1)
+            pdf.cell(larguras[2], 8, data_chegada[:10], 1)
+            pdf.cell(larguras[3], 8, servidor[:15], 1)
+            pdf.cell(larguras[4], 8, assunto[:40], 1)
             pdf.ln()
     
+    # Data e hora no final
     pdf.ln(10)
     pdf.set_font('Arial', 'I', 8)
     pdf.cell(0, 6, f'Relatório gerado em: {get_local_time().strftime("%d/%m/%Y às %H:%M:%S")}', 0, 1)
@@ -431,31 +479,13 @@ def criar_relatorio_filtros(df_filtrado, filtros_aplicados):
 def gerar_link_download_pdf(pdf, nome_arquivo):
     """Gera link de download para o PDF"""
     try:
-        pdf_output = pdf.output()
+        pdf_output = pdf.output(dest='S').encode('latin1')
         b64 = base64.b64encode(pdf_output).decode()
         href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_arquivo}">📄 Baixar Relatório PDF</a>'
         return href
     except Exception as e:
         st.error(f"Erro ao gerar PDF: {e}")
         return ""
-        
-def gerar_csv_edicoes(edicoes_df):
-    """
-    Gera o link de download para o CSV de edições.
-    *NOVO: Ordena o DataFrame pela coluna 'NOVA_ATRIBUICAO_SERVIDOR'.
-    """
-    
-    # --- ORDENAÇÃO POR SERVIDOR (NOVO) ---
-    if 'NOVA_ATRIBUICAO_SERVIDOR' in edicoes_df.columns:
-        edicoes_df = edicoes_df.sort_values(by='NOVA_ATRIBUICAO_SERVIDOR', ascending=True)
-    # ------------------------------------
-        
-    csv_data = edicoes_df.to_csv(index=False, sep=';', encoding='utf-8-sig')
-    b64 = base64.b64encode(csv_data.encode()).decode()
-    nome_arquivo = f"edicoes_servidor_pje_{get_local_time().strftime('%Y%m%d_%H%M')}.csv"
-    href = f'<a href="data:text/csv;base64,{b64}" download="{nome_arquivo}">💾 Baixar CSV das Edições</a>'
-    return href
-
 
 # --- FUNÇÃO PRINCIPAL (MAIN) ---
 
@@ -468,408 +498,347 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # --- LÓGICA DE PERSISTÊNCIA E UPLOAD ---
+    # Upload de arquivo
+    st.markdown("### 📁 Upload do Arquivo CSV do PJE")
     
-    processed_df = None
-    uploaded_file = None
+    uploaded_file = st.file_uploader(
+        "Selecione o arquivo CSV exportado do PJE",
+        type=['csv'],
+        help="Arquivo CSV com até 5.000 linhas, separado por ponto e vírgula"
+    )
     
-    # 1. Tentar carregar dados processados do estado da sessão (persiste no F5)
-    if 'processed_data' in st.session_state and st.session_state['processed_data'] is not None:
-        st.success("✅ Dados carregados da sessão anterior. Faça um novo upload para substituir.")
-        processed_df = st.session_state['processed_data']
-        uploaded_file = 'DATA_LOADED' 
-    
-    # 2. Se não houver dados, exibir o uploader
-    if uploaded_file is None:
-        st.markdown("### 📁 Upload do Arquivo CSV do PJE")
-        uploaded_file = st.file_uploader(
-            "Selecione o arquivo CSV exportado do PJE",
-            type=['csv'],
-            help="Arquivo CSV com até 5.000 linhas, separado por ponto e vírgula"
-        )
-
-    # 3. Processar o arquivo recém-enviado
-    if uploaded_file is not None and uploaded_file != 'DATA_LOADED':
+    if uploaded_file is not None:
         try:
+            # Ler arquivo CSV
             df = pd.read_csv(uploaded_file, delimiter=';', encoding='utf-8')
             
+            # 1. Mapear e Padronizar Colunas
             with st.spinner('Padronizando cabeçalhos...'):
                 df_padronizado = mapear_e_padronizar_colunas(df)
             
+            # Mostrar informações básicas do arquivo
             st.success(f"✅ Arquivo carregado com sucesso! {len(df_padronizado)} processos encontrados.")
             
+            # 2. Processar dados (calcula dias, extrai servidor, etc.)
             with st.spinner('Processando dados...'):
                 processed_df = processar_dados(df_padronizado)
+                stats = criar_estatisticas(processed_df)
+            
+            # ✍️ FUNCIONALIDADE DE EDIÇÃO TEMPORÁRIA DE SERVIDOR
+            st.markdown("---")
+            st.markdown("### ✍️ Edição Temporária de Servidor (Processos Sem Etiqueta)")
+            
+            # Identificar processos sem etiqueta ou não atribuídos
+            processos_sem_etiqueta = processed_df[
+                (processed_df['servidor'] == "Sem etiqueta") | 
+                (processed_df['servidor'] == "Não atribuído")
+            ].copy()
+            
+            if len(processos_sem_etiqueta) > 0:
+                st.info(f"Encontrados {len(processos_sem_etiqueta)} processos sem servidor atribuído.")
                 
-                # SALVAR NA SESSÃO para persistir no F5
-                st.session_state['processed_data'] = processed_df
+                # Seleção de processo para edição
+                processo_selecionado = st.selectbox(
+                    "Selecione um processo para atribuir servidor:",
+                    options=processos_sem_etiqueta['NUMERO_PROCESSO'].tolist(),
+                    key="processo_edicao"
+                )
                 
-            uploaded_file = 'DATA_LOADED'
-            
-        except UnicodeDecodeError:
-            st.error("Erro de codificação. Certifique-se de que o arquivo está em formato CSV delimitado por ponto e vírgula (;) e com codificação UTF-8 ou Latin-1.")
-            if 'processed_data' in st.session_state: del st.session_state['processed_data']
-            uploaded_file = None
-        except Exception as e:
-            st.error(f"❌ Ocorreu um erro ao processar o arquivo. Detalhes: {e}")
-            if 'processed_data' in st.session_state: del st.session_state['processed_data']
-            uploaded_file = None
-
-    # 4. Bloco de Exibição das Abas
-    if uploaded_file == 'DATA_LOADED' and processed_df is not None:
-        stats = criar_estatisticas(processed_df)
-        
-        tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "📈 Estatísticas", "🔍 Filtros Avançados"])
-        
-        with tab1:
-            st.markdown("### 📊 Dashboard - Visão Geral")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col4:
-                if st.button("📄 Gerar Relatório - Visão Geral", key="relatorio_visao"):
-                    with st.spinner("Gerando relatório..."):
-                        pdf = criar_relatorio_visao_geral(stats, len(processed_df))
-                        nome_arquivo = f"relatorio_visao_geral_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
-                        href = gerar_link_download_pdf(pdf, nome_arquivo)
-                        if href:
-                            st.markdown(href, unsafe_allow_html=True)
-            
-            with col1:
-                st.metric("Total de Processos", len(processed_df))
-            
-            with col2:
-                servidores_unicos = processed_df['servidor'].nunique() if 'servidor' in processed_df.columns else 0
-                st.metric("Servidores Envolvidos", servidores_unicos)
-            
-            with col3:
-                varas_unicas = processed_df['vara'].nunique() if 'vara' in processed_df.columns else 0
-                st.metric("Varas Federais", varas_unicas)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if not stats['polo_passivo'].empty:
-                    st.altair_chart(
-                        criar_grafico_barras(
-                            stats['polo_passivo'], 
-                            "Distribuição por Polo Passivo", 
-                            "Polo Passivo", 
-                            "Quantidade"
-                        ), 
-                        use_container_width=True
-                    )
-                
-                with st.expander("📊 Ver dados - Polo Passivo"):
-                    st.dataframe(stats['polo_passivo'])
-            
-            with col2:
-                if not stats['mes'].empty:
-                    st.altair_chart(
-                        criar_grafico_barras(
-                            stats['mes'], 
-                            "Distribuição por Mês", 
-                            "Mês", 
-                            "Quantidade"
-                        ), 
-                        use_container_width=True
-                    )
-                
-                with st.expander("📊 Ver dados - Distribuição por Mês"):
-                    st.dataframe(stats['mes'])
-            
-            col3, col4 = st.columns(2)
-            
-            with col3:
-                if not stats['servidor'].empty:
-                    st.altair_chart(
-                        criar_grafico_pizza_com_legenda(
-                            stats['servidor'],
-                            "Distribuição por Servidor"
-                        ),
-                        use_container_width=True
-                    )
-                
-                with st.expander("📊 Ver dados - Distribuição por Servidor"):
-                    st.dataframe(stats['servidor'])
-            
-            with col4:
-                if not stats['assunto'].empty:
-                    df_assunto = pd.DataFrame({
-                        'Assunto': stats['assunto'].index,
-                        'Quantidade': stats['assunto'].values
-                    })
+                if processo_selecionado:
+                    # Informações do processo selecionado
+                    processo_info = processos_sem_etiqueta[
+                        processos_sem_etiqueta['NUMERO_PROCESSO'] == processo_selecionado
+                    ].iloc[0]
                     
-                    chart_assunto = alt.Chart(df_assunto).mark_bar().encode(
-                        x='Quantidade:Q',
-                        y=alt.Y('Assunto:N', sort='-x', title='Assunto'),
-                        tooltip=['Assunto', 'Quantidade']
-                    ).properties(
-                        title="Principais Assuntos",
-                        width=600,
-                        height=400
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Processo:** {processo_info['NUMERO_PROCESSO']}")
+                        st.write(f"**Polo Ativo:** {processo_info.get('POLO_ATIVO', 'N/A')}")
+                        st.write(f"**Polo Passivo:** {processo_info.get('POLO_PASSIVO', 'N/A')}")
+                    
+                    with col2:
+                        st.write(f"**Assunto:** {processo_info.get('ASSUNTO_PRINCIPAL', 'N/A')}")
+                        st.write(f"**Data de Chegada:** {processo_info.get('data_chegada_formatada', 'N/A')}")
+                        st.write(f"**Status atual:** {processo_info['servidor']}")
+                    
+                    # Seleção de servidor
+                    servidores_disponiveis = [
+                        "Servidor 1", "Servidor 2", "Servidor 3", "Servidor 4", 
+                        "Servidor 5", "Servidor 6", "Supervisão"
+                    ]
+                    
+                    novo_servidor = st.selectbox(
+                        "Atribuir servidor:",
+                        options=servidores_disponiveis,
+                        key="novo_servidor"
                     )
-                    st.altair_chart(chart_assunto, use_container_width=True)
+                    
+                    # Botão para aplicar a alteração
+                    if st.button("💾 Aplicar Atribuição Temporária", key="aplicar_edicao"):
+                        # Atualizar o DataFrame processado
+                        mask = processed_df['NUMERO_PROCESSO'] == processo_selecionado
+                        processed_df.loc[mask, 'servidor'] = novo_servidor
+                        
+                        # Atualizar estatísticas
+                        stats = criar_estatisticas(processed_df)
+                        
+                        st.success(f"✅ Servidor '{novo_servidor}' atribuído ao processo {processo_selecionado}!")
+                        
+                        # Atualizar a lista de processos sem etiqueta
+                        processos_sem_etiqueta = processed_df[
+                            (processed_df['servidor'] == "Sem etiqueta") | 
+                            (processed_df['servidor'] == "Não atribuído")
+                        ]
+            else:
+                st.success("✅ Todos os processos já possuem servidor atribuído!")
+            
+            # Abas para organização
+            tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "📈 Estatísticas", "🔍 Filtros Avançados"])
+            
+            with tab1:
+                st.markdown("### 📊 Dashboard - Visão Geral")
                 
-                with st.expander("📊 Ver dados - Principais Assuntos"):
-                    st.dataframe(stats['assunto'])
-        
-        with tab2:
-            st.markdown("### 📈 Estatísticas Detalhadas")
-            
-            col1, col2 = st.columns([3, 1])
-            with col2:
-                if st.button("📄 Gerar Relatório - Estatísticas", key="relatorio_estatisticas"):
-                    with st.spinner("Gerando relatório..."):
-                        pdf = criar_relatorio_estatisticas(stats)
-                        nome_arquivo = f"relatorio_estatisticas_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
-                        href = gerar_link_download_pdf(pdf, nome_arquivo)
-                        if href:
-                            st.markdown(href, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Por Polo Passivo")
-                st.dataframe(stats['polo_passivo'], use_container_width=True)
-                
-                st.markdown("#### Por Servidor")
-                st.dataframe(stats['servidor'], use_container_width=True)
-            
-            with col2:
-                if not stats['mes'].empty:
-                    st.markdown("#### Por Mês")
-                    st.dataframe(stats['mes'], use_container_width=True)
-                
-                st.markdown("#### Por Vara")
-                st.dataframe(stats['vara'], use_container_width=True)
-        
-        with tab3:
-            st.markdown("### 🔍 Filtros Avançados")
-            
-            if 'servidor' not in processed_df.columns:
-                st.error("Não foi possível processar a coluna de Servidor ('Etiquetas'/'tagsProcessoList'). Os filtros podem estar incompletos.")
-                return
-
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                servidor_filter = st.multiselect(
-                    "Filtrar por Servidor",
-                    options=sorted(processed_df['servidor'].unique()),
-                    default=None
-                )
-                
-                # CORREÇÃO: Verificar se a coluna 'mes' existe antes de usar
-                if 'mes' in processed_df.columns:
-                    mes_filter = st.multiselect(
-                        "Filtrar por Mês",
-                        options=sorted(processed_df['mes'].dropna().unique()),
-                        default=None
-                    )
-                else:
-                    mes_filter = None
-                    st.info("Filtro por mês não disponível")
-            
-            with col2:
-                polo_passivo_filter = st.multiselect(
-                    "Filtrar por Polo Passivo",
-                    options=sorted(processed_df['POLO_PASSIVO'].unique()),
-                    default=None
-                )
-                
-                assunto_filter = st.multiselect(
-                    "Filtrar por Assunto",
-                    options=sorted(processed_df['ASSUNTO_PRINCIPAL'].dropna().unique()),
-                    default=None
-                )
-            
-            with col3:
-                vara_filter = st.multiselect(
-                    "Filtrar por Vara",
-                    options=sorted(processed_df['vara'].unique()),
-                    default=None
-                )
-                
-                orgao_julgador_filter = st.multiselect(
-                    "Filtrar por Órgão Julgador",
-                    options=sorted(processed_df['ORGAO_JULGADOR'].dropna().unique()),
-                    default=None
-                )
-            
-            filtered_df = processed_df.copy()
-            filtros_aplicados = []
-            
-            # Lógica de Filtragem
-            if servidor_filter:
-                filtered_df = filtered_df[filtered_df['servidor'].isin(servidor_filter)]
-                filtros_aplicados.append(f"Servidor: {', '.join(servidor_filter)}")
-            
-            # CORREÇÃO: Só aplicar filtro de mês se a coluna existir
-            if mes_filter and 'mes' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['mes'].isin(mes_filter)]
-                filtros_aplicados.append(f"Mês: {', '.join(map(str, mes_filter))}")
-            
-            if polo_passivo_filter:
-                filtered_df = filtered_df[filtered_df['POLO_PASSIVO'].isin(polo_passivo_filter)]
-                filtros_aplicados.append(f"Polo Passivo: {', '.join(polo_passivo_filter)}")
-            
-            if assunto_filter:
-                filtered_df = filtered_df[filtered_df['ASSUNTO_PRINCIPAL'].isin(assunto_filter)]
-                filtros_aplicados.append(f"Assunto: {', '.join(assunto_filter)}")
-            
-            if vara_filter:
-                filtered_df = filtered_df[filtered_df['vara'].isin(vara_filter)]
-                filtros_aplicados.append(f"Vara: {', '.join(vara_filter)}")
-                
-            if orgao_julgador_filter:
-                filtered_df = filtered_df[filtered_df['ORGAO_JULGADOR'].isin(orgao_julgador_filter)]
-                filtros_aplicados.append(f"Órgão Julgador: {', '.join(orgao_julgador_filter)}")
-            
-            filtros_texto = " | ".join(filtros_aplicados) if filtros_aplicados else "Nenhum filtro aplicado"
-            
-            st.metric("Processos Filtrados", len(filtered_df))
-            
-            if len(filtered_df) > 0:
-                # Exibir dados filtrados (incluindo Órgão Julgador)
-                colunas_filtro = [
-                    'NUMERO_PROCESSO', 'POLO_ATIVO', 'POLO_PASSIVO', 'ORGAO_JULGADOR',
-                    'data_chegada_formatada', 'mes', 'dia', 'servidor', 'vara', 'ASSUNTO_PRINCIPAL'
-                ]
-                
-                colunas_existentes = [col for col in colunas_filtro if col in filtered_df.columns]
-                display_filtered = filtered_df[colunas_existentes].copy()
-                
-                display_filtered.columns = [
-                    'Nº Processo', 'Polo Ativo', 'Polo Passivo', 'Órgão Julgador',
-                    'Data Chegada', 'Mês', 'Dia', 'Servidor', 'Vara', 'Assunto Principal'
-                ][:len(display_filtered.columns)]
-                
-                st.dataframe(display_filtered, use_container_width=True)
-                
-                # Botão para gerar relatório PDF
-                st.markdown("---")
-                st.markdown("### 📄 Gerar Relatório com Filtros")
-                
-                if st.button("🖨️ Gerar Relatório PDF com Filtros Atuais", key="relatorio_filtros"):
-                    with st.spinner("Gerando relatório..."):
-                        try:
-                            pdf = criar_relatorio_filtros(display_filtered, filtros_texto)
-                            nome_arquivo = f"relatorio_filtros_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
+                # Botão para gerar relatório
+                col1, col2, col3, col4 = st.columns(4)
+                with col4:
+                    if st.button("📄 Gerar Relatório - Visão Geral", key="relatorio_visao"):
+                        with st.spinner("Gerando relatório..."):
+                            pdf = criar_relatorio_visao_geral(stats, len(processed_df))
+                            nome_arquivo = f"relatorio_visao_geral_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
                             href = gerar_link_download_pdf(pdf, nome_arquivo)
                             if href:
                                 st.markdown(href, unsafe_allow_html=True)
-                        except Exception as e:
-                            st.error(f"Erro ao gerar PDF: {e}")
-            
-            else:
-                st.warning("Nenhum processo encontrado com os filtros aplicados.")
                 
-            # --- SEÇÃO DE EDIÇÃO TEMPORÁRIA (AGRUPADA POR ASSUNTO) ---
-            st.markdown("---")
-            st.markdown("### ✍️ Edição Temporária de Servidor (Processos Sem Etiqueta)")
-
-            df_sem_etiqueta = processed_df[processed_df['servidor'] == 'Sem etiqueta'].copy()
-
-            if df_sem_etiqueta.empty:
-                st.info("🎉 Excelente! Nenhum processo 'Sem etiqueta' encontrado na planilha.")
-            else:
-                st.info(f"Processos sem etiqueta: **{len(df_sem_etiqueta)}**")
+                # Métricas principais
+                with col1:
+                    st.metric("Total de Processos", len(processed_df))
                 
-                if 'edicoes_servidor' not in st.session_state:
-                    st.session_state['edicoes_servidor'] = {}
-
-                servidores_disponiveis = sorted(processed_df['servidor'].unique())
-                servidores_para_atribuir = [s for s in servidores_disponiveis if s not in ["Sem etiqueta", "Não atribuído"]]
+                with col2:
+                    servidores_unicos = processed_df['servidor'].nunique() if 'servidor' in processed_df.columns else 0
+                    st.metric("Servidores Envolvidos", servidores_unicos)
                 
-                # Agrupar por Assunto Principal
-                grouped_by_assunto = df_sem_etiqueta.groupby('ASSUNTO_PRINCIPAL')
+                with col3:
+                    varas_unicas = processed_df['vara'].nunique() if 'vara' in processed_df.columns else 0
+                    st.metric("Varas Federais", varas_unicas)
                 
-                for assunto, group_df in grouped_by_assunto:
-                    # Usar um expander para cada assunto
-                    with st.expander(f"📚 **{assunto}** ({len(group_df)} processos)"):
-                        
-                        for index, row in group_df.iterrows():
-                            num_proc = row['NUMERO_PROCESSO']
-                            default_value = st.session_state['edicoes_servidor'].get(num_proc, '')
-                            
-                            polo_passivo = row.get('POLO_PASSIVO', 'N/D')
-                            
-                            # Exibe Polo Passivo (fonte menor) e Assunto
-                            st.markdown(f"""
-                                <p style="font-size: 11px; margin: 0; padding: 0;">Réu: **{polo_passivo}**</p>
-                                <p style="font-size: 13px; margin: 0; padding: 0; margin-top: 5px;">Processo: **{num_proc}** - Data Chegada: ({row.get('data_chegada_formatada', 'N/D')})</p>
-                            """, unsafe_allow_html=True)
-
-                            # Campo de seleção editável para cada processo
-                            initial_index = servidores_para_atribuir.index(default_value) + 1 if default_value in servidores_para_atribuir else 0
-                            
-                            novo_servidor = st.selectbox(
-                                "Atribuir Servidor:", # Rótulo simplificado, visível se a edição for feita
-                                options=[''] + servidores_para_atribuir,
-                                key=f"edit_{num_proc}",
-                                index=initial_index,
-                                label_visibility='collapsed' # Oculta o label acima do selectbox
-                            )
-                            
-                            # Atualiza o estado da sessão com a edição
-                            if novo_servidor:
-                                st.session_state['edicoes_servidor'][num_proc] = novo_servidor
-                            elif not novo_servidor and num_proc in st.session_state['edicoes_servidor']:
-                                del st.session_state['edicoes_servidor'][num_proc]
-                            
-                            st.markdown("---") # Linha separadora entre processos
-
-                # 3. Gerar o CSV de Edições
+                # Gráficos principais
+                col1, col2 = st.columns(2)
                 
-                edicoes_validas = {k: v for k, v in st.session_state['edicoes_servidor'].items() if v}
+                with col1:
+                    if not stats['polo_passivo'].empty:
+                        st.altair_chart(
+                            criar_grafico_barras(
+                                stats['polo_passivo'], 
+                                "Distribuição por Polo Passivo", 
+                                "Polo Passivo", 
+                                "Quantidade"
+                            ), 
+                            use_container_width=True
+                        )
+                    
+                    with st.expander("📊 Ver dados - Polo Passivo"):
+                        st.dataframe(stats['polo_passivo'])
                 
-                if edicoes_validas:
-                    st.success(f"**{len(edicoes_validas)}** edições temporárias prontas para download.")
-
-                    edicoes_list = []
-                    for num_proc, novo_servidor in edicoes_validas.items():
-                        original_row = processed_df[processed_df['NUMERO_PROCESSO'] == num_proc].iloc[0]
-                        
-                        orgao_vara = original_row.get('ORGAO_JULGADOR', '')
-                        if orgao_vara and original_row.get('vara'):
-                            orgao_vara += f" ({original_row.get('vara')})"
-                        elif original_row.get('vara'):
-                            orgao_vara = original_row.get('vara')
-
-                        edicoes_list.append({
-                            'NUMERO_PROCESSO': num_proc,
-                            'DATA_CHEGADA': original_row.get('data_chegada_formatada', 'N/D'),
-                            'ORGAO_JULGADOR_VARA': orgao_vara,
-                            'NOVA_ATRIBUICAO_SERVIDOR': novo_servidor,
-                            'POLO_PASSIVO': original_row.get('POLO_PASSIVO', 'N/D'),
-                            'ASSUNTO': original_row.get('ASSUNTO_PRINCIPAL', 'N/D'),
-                            'OBSERVACAO': 'Atribuição Temporária Feita no Painel PJE2X'
+                with col2:
+                    if not stats['mes'].empty:
+                        st.altair_chart(
+                            criar_grafico_barras(
+                                stats['mes'], 
+                                "Distribuição por Mês", 
+                                "Mês", 
+                                "Quantidade"
+                            ), 
+                            use_container_width=True
+                        )
+                    
+                    with st.expander("📊 Ver dados - Distribuição por Mês"):
+                        st.dataframe(stats['mes'])
+                
+                # Gráficos secundários
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    if not stats['servidor'].empty:
+                        st.altair_chart(
+                            criar_grafico_pizza_com_legenda(
+                                stats['servidor'],
+                                "Distribuição por Servidor"
+                            ),
+                            use_container_width=True
+                        )
+                    
+                    with st.expander("📊 Ver dados - Distribuição por Servidor"):
+                        st.dataframe(stats['servidor'])
+                
+                with col4:
+                    if not stats['assunto'].empty:
+                        df_assunto = pd.DataFrame({
+                            'Assunto': stats['assunto'].index,
+                            'Quantidade': stats['assunto'].values
                         })
+                        
+                        chart_assunto = alt.Chart(df_assunto).mark_bar().encode(
+                            x='Quantidade:Q',
+                            y=alt.Y('Assunto:N', sort='-x', title='Assunto'),
+                            tooltip=['Assunto', 'Quantidade']
+                        ).properties(
+                            title="Principais Assuntos",
+                            width=600,
+                            height=400
+                        )
+                        st.altair_chart(chart_assunto, use_container_width=True)
                     
-                    edicoes_df = pd.DataFrame(edicoes_list)
+                    with st.expander("📊 Ver dados - Principais Assuntos"):
+                        st.dataframe(stats['assunto'])
+            
+            with tab2:
+                st.markdown("### 📈 Estatísticas Detalhadas")
+                
+                # Botão para gerar relatório
+                col1, col2 = st.columns([3, 1])
+                with col2:
+                    if st.button("📄 Gerar Relatório - Estatísticas", key="relatorio_estatisticas"):
+                        with st.spinner("Gerando relatório..."):
+                            pdf = criar_relatorio_estatisticas(stats)
+                            nome_arquivo = f"relatorio_estatisticas_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
+                            href = gerar_link_download_pdf(pdf, nome_arquivo)
+                            if href:
+                                st.markdown(href, unsafe_allow_html=True)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### Por Polo Passivo")
+                    st.dataframe(stats['polo_passivo'], use_container_width=True)
                     
-                    st.markdown(gerar_csv_edicoes(edicoes_df), unsafe_allow_html=True)
+                    st.markdown("#### Por Servidor")
+                    st.dataframe(stats['servidor'], use_container_width=True)
+                
+                with col2:
+                    st.markdown("#### Por Mês")
+                    st.dataframe(stats['mes'], use_container_width=True)
                     
-                    with st.expander("Ver Edições Prontas"):
-                        # Exibe o dataframe ordenado para conferência
-                        if 'NOVA_ATRIBUICAO_SERVIDOR' in edicoes_df.columns:
-                            edicoes_df_display = edicoes_df.sort_values(by='NOVA_ATRIBUICAO_SERVIDOR', ascending=True)
+                    st.markdown("#### Por Vara")
+                    st.dataframe(stats['vara'], use_container_width=True)
+            
+            with tab3:
+                st.markdown("### 🔍 Filtros Avançados")
+                
+                if 'servidor' in processed_df.columns:
+                    # Filtros
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        servidores_filtro = st.multiselect(
+                            "Filtrar por Servidor:",
+                            options=sorted(processed_df['servidor'].unique()),
+                            default=None
+                        )
+                    
+                    with col2:
+                        varas_filtro = st.multiselect(
+                            "Filtrar por Vara:",
+                            options=sorted(processed_df['vara'].unique()),
+                            default=None
+                        )
+                    
+                    with col3:
+                        if 'mes' in processed_df.columns:
+                            meses_filtro = st.multiselect(
+                                "Filtrar por Mês:",
+                                options=sorted(processed_df['mes'].unique()),
+                                default=None
+                            )
                         else:
-                            edicoes_df_display = edicoes_df
-                            
-                        st.dataframe(edicoes_df_display, use_container_width=True)
-
+                            meses_filtro = []
+                    
+                    # Aplicar filtros
+                    df_filtrado = processed_df.copy()
+                    filtros_aplicados = "Filtros aplicados: "
+                    
+                    if servidores_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['servidor'].isin(servidores_filtro)]
+                        filtros_aplicados += f"Servidores: {', '.join(servidores_filtro)}; "
+                    
+                    if varas_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['vara'].isin(varas_filtro)]
+                        filtros_aplicados += f"Varas: {', '.join(varas_filtro)}; "
+                    
+                    if meses_filtro:
+                        df_filtrado = df_filtrado[df_filtrado['mes'].isin(meses_filtro)]
+                        filtros_aplicados += f"Meses: {', '.join(map(str, meses_filtro))}; "
+                    
+                    # Mostrar resultados filtrados
+                    st.markdown(f"**Processos encontrados:** {len(df_filtrado)}")
+                    
+                    if len(df_filtrado) > 0:
+                        # Preparar dados para exibição
+                        df_exibicao = df_filtrado.copy()
+                        
+                        # Renomear colunas para exibição
+                        colunas_exibicao = {
+                            'NUMERO_PROCESSO': 'Nº Processo',
+                            'POLO_ATIVO': 'Polo Ativo', 
+                            'POLO_PASSIVO': 'Polo Passivo',
+                            'ASSUNTO_PRINCIPAL': 'Assunto Principal',
+                            'servidor': 'Servidor',
+                            'vara': 'Vara',
+                            'data_chegada_formatada': 'Data Chegada',
+                            'DIAS': 'Dias'
+                        }
+                        
+                        # Selecionar e renomear colunas disponíveis
+                        colunas_disponiveis = [col for col in colunas_exibicao.keys() if col in df_exibicao.columns]
+                        df_exibicao = df_exibicao[colunas_disponiveis]
+                        df_exibicao.rename(columns=colunas_exibicao, inplace=True)
+                        
+                        # Exibir tabela
+                        st.dataframe(df_exibicao, use_container_width=True)
+                        
+                        # Botão para gerar relatório dos filtros
+                        if st.button("📄 Gerar Relatório - Filtros Aplicados", key="relatorio_filtros"):
+                            with st.spinner("Gerando relatório..."):
+                                pdf = criar_relatorio_filtros(df_exibicao, filtros_aplicados)
+                                nome_arquivo = f"relatorio_filtros_{get_local_time().strftime('%Y%m%d_%H%M')}.pdf"
+                                href = gerar_link_download_pdf(pdf, nome_arquivo)
+                                if href:
+                                    st.markdown(href, unsafe_allow_html=True)
+                    else:
+                        st.warning("Nenhum processo encontrado com os filtros aplicados.")
+                
                 else:
-                    st.info("Nenhuma edição temporária de servidor registrada ainda.")
-
+                    st.warning("Coluna 'servidor' não encontrada no arquivo.")
+        
+        except Exception as e:
+            st.error(f"❌ Erro ao processar o arquivo: {str(e)}")
+            st.info("Verifique se o arquivo está no formato CSV correto do PJE.")
+    
     else:
-        # Tela inicial quando não há arquivo e não há dados na sessão
+        # Tela inicial quando não há arquivo carregado
         st.markdown("""
         <div class="upload-section">
-            <h3>👋 Bem-vindo ao Sistema de Gestão de Processos Judiciais</h3>
-            <p>Faça o upload do arquivo CSV exportado do PJE para começar a análise. Funciona com formatos de painel variados!</p>
+            <h3>📤 Faça o upload do arquivo CSV do PJE para começar</h3>
+            <p>O arquivo deve conter as colunas padrão exportadas do sistema PJE</p>
         </div>
         """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        ### 📋 Instruções:
+        
+        1. **Exporte o relatório** do PJE no formato CSV
+        2. **Faça o upload** do arquivo usando o seletor acima
+        3. **Analise as estatísticas** automaticamente geradas
+        4. **Filtre e explore** os dados conforme sua necessidade
+        
+        ### 🔧 Funcionalidades disponíveis:
+        
+        - 📊 **Dashboard interativo** com gráficos e métricas
+        - 📈 **Estatísticas detalhadas** por servidor, vara, assunto e mês
+        - 🔍 **Filtros avançados** para análise específica
+        - 📄 **Geração de relatórios** em PDF
+        - ✍️ **Edição temporária** de servidor para processos sem etiqueta
+        """)
 
 if __name__ == "__main__":
     main()
